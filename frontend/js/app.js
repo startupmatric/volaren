@@ -9,6 +9,8 @@ const holdingCount = document.getElementById("holdingCount");
 const holdingsTable = document.getElementById("holdingsTable");
 const changesContent = document.getElementById("changesContent");
 
+let portfolioHistoryChart = null;
+
 uploadButton.addEventListener("click", uploadPortfolio);
 
 async function uploadPortfolio() {
@@ -44,6 +46,8 @@ async function uploadPortfolio() {
 
         await loadChanges(data.portfolio_id);
 
+        await loadPortfolioHistory(data.portfolio_id);
+
         uploadStatus.textContent = "Portfolio uploaded successfully.";
 
     } catch (error) {
@@ -76,6 +80,25 @@ async function loadChanges(portfolioId) {
         console.error(error);
         changesContent.innerHTML =
             '<p class="changes-empty">Could not load changes.</p>';
+    }
+}
+
+async function loadPortfolioHistory(portfolioId) {
+
+    try {
+        const response = await fetch(
+            `${API_URL}/api/portfolio/${portfolioId}/history`
+        );
+
+        if (!response.ok) {
+            throw new Error("Failed to load history");
+        }
+
+        const data = await response.json();
+        renderHistory(data);
+
+    } catch (error) {
+        console.error("History error:", error);
     }
 }
 
@@ -205,6 +228,68 @@ function renderChanges(diff) {
     changesContent.innerHTML = parts.join("");
 }
 
+function renderHistory(data) {
+
+    const history = data.history;
+    const summary = data.summary;
+
+    const summaryElement = document.getElementById("historySummary");
+
+    if (summaryElement) {
+        const sign = summary.total_return_pct >= 0 ? "+" : "";
+        summaryElement.innerHTML = `
+            <strong>${formatCurrency(summary.current_value)}</strong><br>
+            ${sign}${summary.total_return_pct.toFixed(2)}%
+            since first snapshot (${summary.snapshot_count} snapshots)
+        `;
+    }
+
+    const labels = history.map(s => formatDate(s.created_at));
+    const values = history.map(s => s.portfolio_value);
+
+    const canvas = document.getElementById("portfolioHistoryChart");
+
+    if (!canvas) return;
+
+    if (portfolioHistoryChart) {
+        portfolioHistoryChart.destroy();
+    }
+
+    portfolioHistoryChart = new Chart(canvas, {
+        type: "line",
+        data: {
+            labels: labels,
+            datasets: [{
+                label: "Portfolio Value",
+                data: values,
+                tension: 0.3,
+                borderWidth: 2,
+                pointRadius: 4,
+                borderColor: "#111111",
+                backgroundColor: "rgba(17, 17, 17, 0.08)",
+                fill: true,
+            }],
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+            },
+            scales: {
+                y: {
+                    beginAtZero: false,
+                    ticks: {
+                        callback: function(value) {
+                            return formatCurrency(value);
+                        },
+                    },
+                },
+            },
+        },
+    });
+}
+
 function deltaClass(value) {
     const n = Number(value) || 0;
     if (n > 0) return "delta-positive";
@@ -236,4 +321,13 @@ function formatPct(value) {
     const n = Number(value) || 0;
     const sign = n >= 0 ? "+" : "";
     return `${sign}${n.toFixed(2)}%`;
+}
+
+function formatDate(dateString) {
+    return new Date(dateString).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
 }

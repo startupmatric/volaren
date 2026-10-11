@@ -24,6 +24,10 @@ from app.services.persistence_service import (
     save_snapshot,
 )
 from app.services.diff_service import compute_diff
+from app.services.history_service import (
+    get_historical_summary,
+    get_snapshot_history,
+)
 
 
 router = APIRouter(
@@ -147,3 +151,18 @@ def get_changes(
         )
 
     return diff
+
+
+@router.get("/{portfolio_id}/history")
+def get_portfolio_history(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+):
+    history = get_snapshot_history(db, portfolio_id)
+    summary = get_historical_summary(db, portfolio_id)
+
+    return {
+        "portfolio_id": portfolio_id,
+        "summary": summary,
+        "history": history,
+    }
