@@ -9,7 +9,7 @@
       - "8000:8000"
 
     environment:
-      DATABASE_URL: postgresql://volaren:volaren@postgres:5432/volaren
+      DATABASE_URL: postgresql+psycopg2://volaren:volaren@postgres:5432/volaren
 
     depends_on:
       - postgres

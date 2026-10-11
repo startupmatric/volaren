@@ -1,14 +1,9 @@
-﻿from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+﻿# Kept for backward compatibility with Day 1 imports.
+# New code should import from app.database.session instead.
 
-DATABASE_URL = (
-    "postgresql://volaren:volaren@postgres:5432/volaren"
-)
-
-engine = create_engine(DATABASE_URL)
-
-SessionLocal = sessionmaker(
-    autocommit=False,
-    autoflush=False,
-    bind=engine
+from app.database.session import (  # noqa: F401
+    DATABASE_URL,
+    SessionLocal,
+    engine,
+    get_db,
 )

@@ -1,0 +1,5 @@
+﻿ticker,shares,avg_price,current_price,sector
+NVDA,20,165,190,Semiconductors
+MSFT,15,510,515,Technology
+AVGO,10,350,360,Semiconductors
+AMD,25,120,130,Semiconductors
