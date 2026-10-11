@@ -1,28 +1,100 @@
+// =========================================================
+// VOLAREN — PORTFOLIO INTELLIGENCE
+// Frontend Application
+// =========================================================
+
 const API_URL = "http://127.0.0.1:8000";
+
+// =========================================================
+// DOM ELEMENTS
+// =========================================================
 
 const uploadButton = document.getElementById("uploadButton");
 const portfolioFile = document.getElementById("portfolioFile");
 const uploadStatus = document.getElementById("uploadStatus");
+
 const portfolioSection = document.getElementById("portfolioSection");
+
 const portfolioValue = document.getElementById("portfolioValue");
 const holdingCount = document.getElementById("holdingCount");
 const holdingsTable = document.getElementById("holdingsTable");
+
 const changesContent = document.getElementById("changesContent");
 
-let portfolioHistoryChart = null;
+const historySummary = document.getElementById("historySummary");
+const portfolioHistoryChart =
+    document.getElementById("portfolioHistoryChart");
 
-uploadButton.addEventListener("click", uploadPortfolio);
+
+// =========================================================
+// STATE
+// =========================================================
+
+let historyChart = null;
+let currentPortfolioId = null;
+
+
+// =========================================================
+// INITIALIZATION
+// =========================================================
+
+document.addEventListener("DOMContentLoaded", () => {
+    if (uploadButton) {
+        uploadButton.addEventListener("click", uploadPortfolio);
+    }
+
+    if (portfolioFile) {
+        portfolioFile.addEventListener("change", handleFileSelection);
+    }
+});
+
+
+// =========================================================
+// FILE SELECTION
+// =========================================================
+
+function handleFileSelection() {
+    const file = portfolioFile.files[0];
+
+    if (!file) {
+        uploadStatus.textContent = "";
+        return;
+    }
+
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+        uploadStatus.textContent = "Please select a CSV file.";
+        uploadStatus.className = "status-error";
+        return;
+    }
+
+    uploadStatus.textContent = `Selected: ${file.name}`;
+    uploadStatus.className = "status-success";
+}
+
+
+// =========================================================
+// UPLOAD PORTFOLIO
+// =========================================================
 
 async function uploadPortfolio() {
-
     const file = portfolioFile.files[0];
 
     if (!file) {
         uploadStatus.textContent = "Please select a CSV file.";
+        uploadStatus.className = "status-error";
         return;
     }
 
-    uploadStatus.textContent = "Uploading...";
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+        uploadStatus.textContent = "Only CSV files are supported.";
+        uploadStatus.className = "status-error";
+        return;
+    }
+
+    setUploadLoading(true);
+
+    uploadStatus.textContent = "Uploading portfolio...";
+    uploadStatus.className = "status-loading";
 
     const formData = new FormData();
     formData.append("file", file);
@@ -37,10 +109,24 @@ async function uploadPortfolio() {
         );
 
         if (!response.ok) {
-            throw new Error("Upload failed");
+            let message = "Upload failed.";
+
+            try {
+                const errorData = await response.json();
+
+                if (errorData.detail) {
+                    message = errorData.detail;
+                }
+            } catch (_) {
+                // Ignore JSON parsing errors.
+            }
+
+            throw new Error(message);
         }
 
         const data = await response.json();
+
+        currentPortfolioId = data.portfolio_id;
 
         renderPortfolio(data);
 
@@ -48,286 +134,1048 @@ async function uploadPortfolio() {
 
         await loadPortfolioHistory(data.portfolio_id);
 
-        uploadStatus.textContent = "Portfolio uploaded successfully.";
+        uploadStatus.textContent =
+            "Portfolio uploaded successfully.";
+
+        uploadStatus.className = "status-success";
 
     } catch (error) {
-        console.error(error);
-        uploadStatus.textContent = "Something went wrong.";
+        console.error("Portfolio upload error:", error);
+
+        uploadStatus.textContent =
+            error.message || "Something went wrong.";
+
+        uploadStatus.className = "status-error";
+
+    } finally {
+        setUploadLoading(false);
     }
 }
 
+
+// =========================================================
+// UPLOAD BUTTON LOADING STATE
+// =========================================================
+
+function setUploadLoading(isLoading) {
+    if (!uploadButton) {
+        return;
+    }
+
+    uploadButton.disabled = isLoading;
+
+    if (isLoading) {
+        uploadButton.dataset.originalText =
+            uploadButton.innerHTML;
+
+        uploadButton.innerHTML = `
+            <span class="button-loading">
+                Analyzing...
+            </span>
+        `;
+    } else {
+        uploadButton.innerHTML = `
+            Analyze Portfolio
+            <span>→</span>
+        `;
+    }
+}
+
+
+// =========================================================
+// LOAD WHAT CHANGED
+// =========================================================
+
 async function loadChanges(portfolioId) {
+    if (!changesContent) {
+        return;
+    }
+
+    changesContent.innerHTML = `
+        <p class="changes-empty">
+            Loading portfolio changes...
+        </p>
+    `;
 
     try {
         const response = await fetch(
             `${API_URL}/api/portfolio/${portfolioId}/changes`
         );
 
+        // First snapshot.
         if (response.status === 404) {
-            changesContent.innerHTML =
-                '<p class="changes-empty">No previous snapshot to compare.</p>';
+            changesContent.innerHTML = `
+                <p class="changes-empty">
+                    No previous snapshot to compare.
+                </p>
+            `;
+
             return;
         }
 
         if (!response.ok) {
-            throw new Error("Changes fetch failed");
+            throw new Error(
+                `Changes request failed (${response.status})`
+            );
         }
 
         const diff = await response.json();
+
         renderChanges(diff);
 
     } catch (error) {
-        console.error(error);
-        changesContent.innerHTML =
-            '<p class="changes-empty">Could not load changes.</p>';
+        console.error("Changes error:", error);
+
+        changesContent.innerHTML = `
+            <p class="changes-empty">
+                Could not load portfolio changes.
+            </p>
+        `;
     }
 }
 
-async function loadPortfolioHistory(portfolioId) {
 
+// =========================================================
+// LOAD PORTFOLIO HISTORY
+// =========================================================
+
+async function loadPortfolioHistory(portfolioId) {
     try {
         const response = await fetch(
             `${API_URL}/api/portfolio/${portfolioId}/history`
         );
 
         if (!response.ok) {
-            throw new Error("Failed to load history");
+            throw new Error(
+                `History request failed (${response.status})`
+            );
         }
 
         const data = await response.json();
+
         renderHistory(data);
 
     } catch (error) {
         console.error("History error:", error);
+
+        if (historySummary) {
+            historySummary.innerHTML = `
+                <span class="delta-negative">
+                    History unavailable
+                </span>
+            `;
+        }
     }
 }
 
+
+// =========================================================
+// RENDER PORTFOLIO
+// =========================================================
+
 function renderPortfolio(data) {
+    if (!portfolioSection) {
+        return;
+    }
 
     portfolioSection.classList.remove("hidden");
 
     const portfolio = data.portfolio || {};
 
-    portfolioValue.textContent =
-        formatCurrency(portfolio.portfolio_value || 0);
+    const holdings = Array.isArray(data.holdings)
+        ? data.holdings
+        : [];
 
-    holdingCount.textContent = data.holdings.length;
+    // -------------------------------------------------------
+    // Portfolio Value
+    // -------------------------------------------------------
+
+    if (portfolioValue) {
+        portfolioValue.textContent =
+            formatCurrency(
+                portfolio.portfolio_value || 0
+            );
+    }
+
+    // -------------------------------------------------------
+    // Holding Count
+    // -------------------------------------------------------
+
+    if (holdingCount) {
+        holdingCount.textContent = holdings.length;
+    }
+
+    // -------------------------------------------------------
+    // Holdings Table
+    // -------------------------------------------------------
+
+    if (!holdingsTable) {
+        return;
+    }
 
     holdingsTable.innerHTML = "";
 
-    data.holdings.forEach(holding => {
+    if (!holdings.length) {
+        holdingsTable.innerHTML = `
+            <tr>
+                <td colspan="9">
+                    No holdings found.
+                </td>
+            </tr>
+        `;
 
+        return;
+    }
+
+    holdings.forEach(holding => {
         const row = document.createElement("tr");
 
+        const ticker = escapeHTML(
+            holding.ticker || "-"
+        );
+
+        const shares = Number(
+            holding.shares || 0
+        );
+
+        const avgPrice = Number(
+            holding.avg_price || 0
+        );
+
+        const currentPrice = Number(
+            holding.current_price || 0
+        );
+
+        const positionValue = Number(
+            holding.position_value || 0
+        );
+
+        const returnPct = Number(
+            holding.return_pct || 0
+        );
+
+        const weightPct = Number(
+            holding.weight_pct || 0
+        );
+
+        const contributionPct = Number(
+            holding.contribution_pct || 0
+        );
+
+        const pnl = Number(
+            holding.pnl || 0
+        );
+
         row.innerHTML = `
-            <td>${holding.ticker}</td>
-            <td>${holding.shares}</td>
-            <td>${formatCurrency(holding.avg_price)}</td>
-            <td>${formatCurrency(holding.current_price)}</td>
-            <td>${formatCurrency(holding.position_value)}</td>
-            <td>${formatPct(holding.return_pct)}</td>
-            <td>${formatPct(holding.weight_pct)}</td>
-            <td>${formatPct(holding.contribution_pct)}</td>
-            <td>${formatCurrency(holding.pnl)}</td>
+            <td>
+                <strong>${ticker}</strong>
+            </td>
+
+            <td>
+                ${formatNumber(shares)}
+            </td>
+
+            <td>
+                ${formatCurrency(avgPrice)}
+            </td>
+
+            <td>
+                ${formatCurrency(currentPrice)}
+            </td>
+
+            <td>
+                ${formatCurrency(positionValue)}
+            </td>
+
+            <td class="${deltaClass(returnPct)}">
+                ${formatPct(returnPct)}
+            </td>
+
+            <td>
+                ${formatPct(weightPct)}
+            </td>
+
+            <td class="${deltaClass(contributionPct)}">
+                ${formatPct(contributionPct)}
+            </td>
+
+            <td class="${deltaClass(pnl)}">
+                ${formatCurrencyWithSign(pnl)}
+            </td>
         `;
 
         holdingsTable.appendChild(row);
-
     });
 }
 
+
+// =========================================================
+// RENDER WHAT CHANGED
+// =========================================================
+
 function renderChanges(diff) {
+    if (!changesContent) {
+        return;
+    }
+
+    if (!diff || typeof diff !== "object") {
+        changesContent.innerHTML = `
+            <p class="changes-empty">
+                No change data available.
+            </p>
+        `;
+
+        return;
+    }
 
     const parts = [];
 
+    // -------------------------------------------------------
+    // PORTFOLIO SUMMARY
+    // -------------------------------------------------------
+
+    const valueBefore =
+        Number(diff.portfolio_value_before || 0);
+
+    const valueAfter =
+        Number(diff.portfolio_value_after || 0);
+
+    const valueDelta =
+        Number(diff.portfolio_value_delta || 0);
+
+    const returnBefore =
+        Number(diff.return_pct_before || 0);
+
+    const returnAfter =
+        Number(diff.return_pct_after || 0);
+
+    const returnDelta =
+        Number(diff.return_pct_delta || 0);
+
     parts.push(`
         <div class="changes-summary">
+
             <div class="changes-summary-item">
-                <span>Portfolio value</span>
+
+                <span>
+                    Portfolio value
+                </span>
+
                 <strong>
-                    ${formatCurrency(diff.portfolio_value_before)}
-                    → ${formatCurrency(diff.portfolio_value_after)}
-                    <em class="${deltaClass(diff.portfolio_value_delta)}">
-                        (${formatDeltaCurrency(diff.portfolio_value_delta)})
+
+                    ${formatCurrency(valueBefore)}
+
+                    <span class="change-arrow">
+                        →
+                    </span>
+
+                    ${formatCurrency(valueAfter)}
+
+                    <em class="${deltaClass(valueDelta)}">
+                        (${formatDeltaCurrency(valueDelta)})
                     </em>
+
                 </strong>
+
             </div>
+
+
             <div class="changes-summary-item">
-                <span>Return</span>
+
+                <span>
+                    Return
+                </span>
+
                 <strong>
-                    ${formatPct(diff.return_pct_before)}
-                    → ${formatPct(diff.return_pct_after)}
-                    <em class="${deltaClass(diff.return_pct_delta)}">
-                        (${formatDeltaPct(diff.return_pct_delta)})
+
+                    ${formatPct(returnBefore)}
+
+                    <span class="change-arrow">
+                        →
+                    </span>
+
+                    ${formatPct(returnAfter)}
+
+                    <em class="${deltaClass(returnDelta)}">
+                        (${formatDeltaPct(returnDelta)})
                     </em>
+
                 </strong>
+
             </div>
+
         </div>
     `);
 
-    if (diff.weight_changes && diff.weight_changes.length) {
-        parts.push('<h3 class="changes-heading">Weight shifts</h3>');
-        parts.push('<ul class="changes-list">');
-        diff.weight_changes.slice(0, 5).forEach(w => {
-            parts.push(`
-                <li>
-                    <span class="changes-ticker">${w.ticker}</span>
-                    <span class="changes-values">
-                        ${formatPct(w.weight_before_pct)}
-                        →
-                        ${formatPct(w.weight_after_pct)}
-                    </span>
-                    <em class="${deltaClass(w.weight_delta_pct)}">
-                        ${formatDeltaPct(w.weight_delta_pct)}
-                    </em>
-                </li>
-            `);
-        });
-        parts.push('</ul>');
+
+    // -------------------------------------------------------
+    // WEIGHT CHANGES
+    // -------------------------------------------------------
+
+    const weightChanges =
+        Array.isArray(diff.weight_changes)
+            ? diff.weight_changes
+            : [];
+
+    if (weightChanges.length) {
+
+        parts.push(`
+            <h3 class="changes-heading">
+                Weight shifts
+            </h3>
+        `);
+
+        parts.push(`
+            <ul class="changes-list">
+        `);
+
+        weightChanges
+            .slice(0, 5)
+            .forEach(change => {
+
+                const ticker =
+                    escapeHTML(change.ticker || "-");
+
+                const before =
+                    Number(
+                        change.weight_before_pct || 0
+                    );
+
+                const after =
+                    Number(
+                        change.weight_after_pct || 0
+                    );
+
+                const delta =
+                    Number(
+                        change.weight_delta_pct || 0
+                    );
+
+                parts.push(`
+                    <li>
+
+                        <span class="changes-ticker">
+                            ${ticker}
+                        </span>
+
+                        <span class="changes-values">
+
+                            ${formatPct(before)}
+
+                            <span class="change-arrow">
+                                →
+                            </span>
+
+                            ${formatPct(after)}
+
+                        </span>
+
+                        <em class="${deltaClass(delta)}">
+                            ${formatDeltaPct(delta)}
+                        </em>
+
+                    </li>
+                `);
+            });
+
+        parts.push(`
+            </ul>
+        `);
     }
 
-    if (diff.contribution_changes && diff.contribution_changes.length) {
-        parts.push('<h3 class="changes-heading">Contribution shifts</h3>');
-        parts.push('<ul class="changes-list">');
-        diff.contribution_changes.slice(0, 5).forEach(c => {
-            parts.push(`
-                <li>
-                    <span class="changes-ticker">${c.ticker}</span>
-                    <span class="changes-values">
-                        ${formatPct(c.contribution_before_pct)}
-                        →
-                        ${formatPct(c.contribution_after_pct)}
-                    </span>
-                    <em class="${deltaClass(c.contribution_delta_pct)}">
-                        ${formatDeltaPct(c.contribution_delta_pct)}
-                    </em>
-                </li>
-            `);
-        });
-        parts.push('</ul>');
+
+    // -------------------------------------------------------
+    // CONTRIBUTION CHANGES
+    // -------------------------------------------------------
+
+    const contributionChanges =
+        Array.isArray(diff.contribution_changes)
+            ? diff.contribution_changes
+            : [];
+
+    if (contributionChanges.length) {
+
+        parts.push(`
+            <h3 class="changes-heading">
+                Contribution shifts
+            </h3>
+        `);
+
+        parts.push(`
+            <ul class="changes-list">
+        `);
+
+        contributionChanges
+            .slice(0, 5)
+            .forEach(change => {
+
+                const ticker =
+                    escapeHTML(change.ticker || "-");
+
+                const before =
+                    Number(
+                        change.contribution_before_pct || 0
+                    );
+
+                const after =
+                    Number(
+                        change.contribution_after_pct || 0
+                    );
+
+                const delta =
+                    Number(
+                        change.contribution_delta_pct || 0
+                    );
+
+                parts.push(`
+                    <li>
+
+                        <span class="changes-ticker">
+                            ${ticker}
+                        </span>
+
+                        <span class="changes-values">
+
+                            ${formatPct(before)}
+
+                            <span class="change-arrow">
+                                →
+                            </span>
+
+                            ${formatPct(after)}
+
+                        </span>
+
+                        <em class="${deltaClass(delta)}">
+                            ${formatDeltaPct(delta)}
+                        </em>
+
+                    </li>
+                `);
+            });
+
+        parts.push(`
+            </ul>
+        `);
     }
 
-    if (diff.new_positions && diff.new_positions.length) {
+
+    // -------------------------------------------------------
+    // NEW POSITIONS
+    // -------------------------------------------------------
+
+    const newPositions =
+        Array.isArray(diff.new_positions)
+            ? diff.new_positions
+            : [];
+
+    if (newPositions.length) {
+
+        const formattedPositions =
+            newPositions
+                .map(position => escapeHTML(position))
+                .join(", ");
+
         parts.push(`
             <p class="changes-line">
-                <strong>New positions:</strong>
-                ${diff.new_positions.join(", ")}
+
+                <strong>
+                    New positions:
+                </strong>
+
+                ${formattedPositions}
+
             </p>
         `);
     }
 
-    if (diff.closed_positions && diff.closed_positions.length) {
+
+    // -------------------------------------------------------
+    // CLOSED POSITIONS
+    // -------------------------------------------------------
+
+    const closedPositions =
+        Array.isArray(diff.closed_positions)
+            ? diff.closed_positions
+            : [];
+
+    if (closedPositions.length) {
+
+        const formattedPositions =
+            closedPositions
+                .map(position => escapeHTML(position))
+                .join(", ");
+
         parts.push(`
             <p class="changes-line">
-                <strong>Closed positions:</strong>
-                ${diff.closed_positions.join(", ")}
+
+                <strong>
+                    Closed positions:
+                </strong>
+
+                ${formattedPositions}
+
             </p>
         `);
     }
 
-    changesContent.innerHTML = parts.join("");
+
+    // -------------------------------------------------------
+    // EMPTY CHANGE STATE
+    // -------------------------------------------------------
+
+    if (parts.length === 1) {
+
+        parts.push(`
+            <p class="changes-empty">
+                No significant changes detected.
+            </p>
+        `);
+    }
+
+
+    changesContent.innerHTML =
+        parts.join("");
 }
+
+
+// =========================================================
+// RENDER HISTORY
+// =========================================================
 
 function renderHistory(data) {
 
-    const history = data.history;
-    const summary = data.summary;
+    const history =
+        Array.isArray(data?.history)
+            ? data.history
+            : [];
 
-    const summaryElement = document.getElementById("historySummary");
+    const summary =
+        data?.summary || {};
 
-    if (summaryElement) {
-        const sign = summary.total_return_pct >= 0 ? "+" : "";
-        summaryElement.innerHTML = `
-            <strong>${formatCurrency(summary.current_value)}</strong><br>
-            ${sign}${summary.total_return_pct.toFixed(2)}%
-            since first snapshot (${summary.snapshot_count} snapshots)
+
+    // -------------------------------------------------------
+    // SUMMARY
+    // -------------------------------------------------------
+
+    if (historySummary) {
+
+        const totalReturn =
+            Number(summary.total_return_pct || 0);
+
+        const sign =
+            totalReturn > 0
+                ? "+"
+                : "";
+
+        historySummary.innerHTML = `
+            <strong>
+                ${formatCurrency(
+                    summary.current_value || 0
+                )}
+            </strong>
+
+            <br>
+
+            <span class="${deltaClass(totalReturn)}">
+                ${sign}${totalReturn.toFixed(2)}%
+            </span>
+
+            <span>
+                since first snapshot
+            </span>
+
+            <span>
+                (${Number(
+                    summary.snapshot_count || 0
+                )} snapshots)
+            </span>
         `;
     }
 
-    const labels = history.map(s => formatDate(s.created_at));
-    const values = history.map(s => s.portfolio_value);
 
-    const canvas = document.getElementById("portfolioHistoryChart");
+    // -------------------------------------------------------
+    // NO HISTORY
+    // -------------------------------------------------------
 
-    if (!canvas) return;
+    if (!history.length) {
 
-    if (portfolioHistoryChart) {
-        portfolioHistoryChart.destroy();
+        destroyHistoryChart();
+
+        return;
     }
 
-    portfolioHistoryChart = new Chart(canvas, {
-        type: "line",
-        data: {
-            labels: labels,
-            datasets: [{
-                label: "Portfolio Value",
-                data: values,
-                tension: 0.3,
-                borderWidth: 2,
-                pointRadius: 4,
-                borderColor: "#111111",
-                backgroundColor: "rgba(17, 17, 17, 0.08)",
-                fill: true,
-            }],
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            plugins: {
-                legend: { display: false },
+
+    // -------------------------------------------------------
+    // CHART DATA
+    // -------------------------------------------------------
+
+    const labels = history.map(snapshot =>
+        formatDate(snapshot.created_at)
+    );
+
+    const values = history.map(snapshot =>
+        Number(snapshot.portfolio_value || 0)
+    );
+
+
+    // -------------------------------------------------------
+    // CANVAS
+    // -------------------------------------------------------
+
+    const canvas =
+        document.getElementById(
+            "portfolioHistoryChart"
+        );
+
+    if (!canvas) {
+        return;
+    }
+
+
+    // -------------------------------------------------------
+    // DESTROY OLD CHART
+    // -------------------------------------------------------
+
+    destroyHistoryChart();
+
+
+    // -------------------------------------------------------
+    // CREATE CHART
+    // -------------------------------------------------------
+
+    if (typeof Chart === "undefined") {
+
+        console.error(
+            "Chart.js is not loaded."
+        );
+
+        return;
+    }
+
+
+    historyChart = new Chart(
+        canvas,
+        {
+            type: "line",
+
+            data: {
+                labels: labels,
+
+                datasets: [
+                    {
+                        label: "Portfolio Value",
+
+                        data: values,
+
+                        tension: 0.3,
+
+                        borderWidth: 2,
+
+                        pointRadius: 4,
+
+                        pointHoverRadius: 6,
+
+                        borderColor: "#111111",
+
+                        backgroundColor:
+                            "rgba(255, 90, 31, 0.08)",
+
+                        pointBackgroundColor:
+                            "#ff5a1f",
+
+                        pointBorderColor:
+                            "#ffffff",
+
+                        pointBorderWidth: 2,
+
+                        fill: true
+                    }
+                ]
             },
-            scales: {
-                y: {
-                    beginAtZero: false,
-                    ticks: {
-                        callback: function(value) {
-                            return formatCurrency(value);
-                        },
-                    },
+
+            options: {
+
+                responsive: true,
+
+                maintainAspectRatio: false,
+
+                interaction: {
+                    intersect: false,
+                    mode: "index"
                 },
-            },
-        },
-    });
+
+                animation: {
+                    duration: 700,
+                    easing: "easeOutQuart"
+                },
+
+                plugins: {
+
+                    legend: {
+                        display: false
+                    },
+
+                    tooltip: {
+
+                        backgroundColor:
+                            "#111111",
+
+                        titleColor:
+                            "#ffffff",
+
+                        bodyColor:
+                            "#ffffff",
+
+                        borderColor:
+                            "#ff5a1f",
+
+                        borderWidth: 1,
+
+                        padding: 12,
+
+                        callbacks: {
+
+                            label: function(context) {
+
+                                return (
+                                    " Value: " +
+                                    formatCurrency(
+                                        context.parsed.y
+                                    )
+                                );
+                            }
+                        }
+                    }
+                },
+
+                scales: {
+
+                    x: {
+
+                        grid: {
+                            display: false
+                        },
+
+                        ticks: {
+                            color: "#737373"
+                        }
+                    },
+
+                    y: {
+
+                        beginAtZero: false,
+
+                        grid: {
+                            color: "#eeeeee"
+                        },
+
+                        ticks: {
+
+                            color: "#737373",
+
+                            callback:
+                                function(value) {
+
+                                    return formatCurrency(
+                                        value
+                                    );
+                                }
+                        }
+                    }
+                }
+            }
+        }
+    );
 }
 
+
+// =========================================================
+// DESTROY HISTORY CHART
+// =========================================================
+
+function destroyHistoryChart() {
+
+    if (historyChart) {
+
+        historyChart.destroy();
+
+        historyChart = null;
+    }
+}
+
+
+// =========================================================
+// DELTA CLASS
+// =========================================================
+
 function deltaClass(value) {
-    const n = Number(value) || 0;
-    if (n > 0) return "delta-positive";
-    if (n < 0) return "delta-negative";
+
+    const number =
+        Number(value) || 0;
+
+    if (number > 0) {
+        return "delta-positive";
+    }
+
+    if (number < 0) {
+        return "delta-negative";
+    }
+
     return "delta-neutral";
 }
 
+
+// =========================================================
+// FORMAT DELTA CURRENCY
+// =========================================================
+
 function formatDeltaCurrency(value) {
-    const n = Number(value) || 0;
-    const sign = n > 0 ? "+" : "";
-    return `${sign}${formatCurrency(n)}`;
+
+    const number =
+        Number(value) || 0;
+
+    const sign =
+        number > 0
+            ? "+"
+            : "";
+
+    return `${sign}${formatCurrency(number)}`;
 }
+
+
+// =========================================================
+// FORMAT DELTA PERCENTAGE
+// =========================================================
 
 function formatDeltaPct(value) {
-    const n = Number(value) || 0;
-    const sign = n > 0 ? "+" : "";
-    return `${sign}${n.toFixed(2)}%`;
+
+    const number =
+        Number(value) || 0;
+
+    const sign =
+        number > 0
+            ? "+"
+            : "";
+
+    return `${sign}${number.toFixed(2)}%`;
 }
+
+
+// =========================================================
+// FORMAT CURRENCY
+// =========================================================
 
 function formatCurrency(value) {
-    return new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency: "USD",
-        maximumFractionDigits: 2
-    }).format(value);
+
+    return new Intl.NumberFormat(
+        "en-US",
+        {
+            style: "currency",
+
+            currency: "USD",
+
+            maximumFractionDigits: 2
+        }
+    ).format(
+        Number(value) || 0
+    );
 }
+
+
+// =========================================================
+// FORMAT CURRENCY WITH SIGN
+// =========================================================
+
+function formatCurrencyWithSign(value) {
+
+    const number =
+        Number(value) || 0;
+
+    const sign =
+        number > 0
+            ? "+"
+            : "";
+
+    return `${sign}${formatCurrency(number)}`;
+}
+
+
+// =========================================================
+// FORMAT PERCENTAGE
+// =========================================================
 
 function formatPct(value) {
-    const n = Number(value) || 0;
-    const sign = n >= 0 ? "+" : "";
-    return `${sign}${n.toFixed(2)}%`;
+
+    const number =
+        Number(value) || 0;
+
+    const sign =
+        number >= 0
+            ? "+"
+            : "";
+
+    return `${sign}${number.toFixed(2)}%`;
 }
 
+
+// =========================================================
+// FORMAT NUMBER
+// =========================================================
+
+function formatNumber(value) {
+
+    const number =
+        Number(value) || 0;
+
+    return new Intl.NumberFormat(
+        "en-US",
+        {
+            maximumFractionDigits: 4
+        }
+    ).format(number);
+}
+
+
+// =========================================================
+// FORMAT DATE
+// =========================================================
+
 function formatDate(dateString) {
-    return new Date(dateString).toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-    });
+
+    if (!dateString) {
+        return "-";
+    }
+
+    const date =
+        new Date(dateString);
+
+    if (Number.isNaN(date.getTime())) {
+        return "-";
+    }
+
+    return date.toLocaleDateString(
+        "en-US",
+        {
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit"
+        }
+    );
+}
+
+
+// =========================================================
+// ESCAPE HTML
+// =========================================================
+
+function escapeHTML(value) {
+
+    return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
 }
