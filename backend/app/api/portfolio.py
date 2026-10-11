@@ -1,63 +1,60 @@
 ﻿import os
 import tempfile
 
-from fastapi import (
-    APIRouter,
-    UploadFile,
-    File,
-    HTTPException
-)
+from fastapi import APIRouter, UploadFile, File, HTTPException
 
-from app.services.portfolio_service import (
-    read_portfolio_csv,
-    calculate_position_values,
-    calculate_portfolio_value
+from app.services.portfolio_service import read_portfolio_csv
+from app.services.performance_service import (
+    calculate_performance,
+    calculate_portfolio_metrics,
 )
 
 
 router = APIRouter(
     prefix="/api/portfolio",
-    tags=["Portfolio"]
+    tags=["Portfolio"],
 )
 
 
 @router.post("/upload")
-async def upload_portfolio(
-    file: UploadFile = File(...)
-):
+async def upload_portfolio(file: UploadFile = File(...)):
 
     if not file.filename.endswith(".csv"):
-
         raise HTTPException(
             status_code=400,
-            detail="Only CSV files are supported"
+            detail="Only CSV files are supported",
         )
 
     contents = await file.read()
 
     with tempfile.NamedTemporaryFile(
-        delete=False,
-        suffix=".csv"
+        delete=False, suffix=".csv"
     ) as temp_file:
-
         temp_file.write(contents)
         temp_path = temp_file.name
 
     try:
-
         df = read_portfolio_csv(temp_path)
 
-        df = calculate_position_values(df)
+        if "current_price" not in df.columns:
+            raise HTTPException(
+                status_code=400,
+                detail="Missing required column: current_price",
+            )
 
-        portfolio_value = calculate_portfolio_value(df)
-
+        df = calculate_performance(df)
+        metrics = calculate_portfolio_metrics(df)
         holdings = df.to_dict(orient="records")
 
         return {
-            "portfolio_value": portfolio_value,
-            "holdings": holdings
+            "portfolio": metrics,
+            "holdings": holdings,
         }
 
-    finally:
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
+    finally:
         os.unlink(temp_path)

@@ -1,5 +1,5 @@
-ticker,shares,avg_price,sector
-NVDA,20,165,Semiconductors
-MSFT,15,510,Technology
-AVGO,10,350,Semiconductors
-GOOGL,10,240,Technology
+﻿ticker,shares,avg_price,current_price,sector
+NVDA,20,165,180,Semiconductors
+MSFT,15,510,525,Technology
+AVGO,10,350,365,Semiconductors
+GOOGL,10,240,235,Technology
