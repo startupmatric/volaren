@@ -3,6 +3,8 @@ import tempfile
 from app.services.agent_explain_service import (
     explain_portfolio_with_agent,
 )
+from app.schemas.explanation import EvaluationReport
+from app.services.evaluation_service import evaluate_portfolio
 from fastapi import (
     APIRouter,
     Depends,
@@ -282,3 +284,66 @@ def get_portfolio_agent_explanation(
         )
 
     return result
+# =========================================================
+# EVALUATION (Day 7)
+# =========================================================
+
+@router.post(
+    "/{portfolio_id}/evaluate",
+    response_model=EvaluationReport,
+)
+def evaluate_portfolio_deterministic_endpoint(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Evaluate the deterministic explanation of the latest snapshot.
+
+    Runs in milliseconds. No LLM. Always available.
+    Useful as a CI baseline and for regression testing.
+    """
+
+    report = evaluate_portfolio(
+        db,
+        portfolio_id,
+        mode="deterministic",
+    )
+
+    if report is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No snapshots found for this portfolio",
+        )
+
+    return report
+
+
+@router.post(
+    "/{portfolio_id}/evaluate/agent",
+    response_model=EvaluationReport,
+)
+def evaluate_portfolio_agent_endpoint(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Evaluate the LLM explanation of the latest snapshot.
+
+    Triggers a Groq API call (~2-5 seconds).
+    Falls back to deterministic if the LLM fails; the fallback
+    is reported with source='deterministic_fallback' and passed=False.
+    """
+
+    report = evaluate_portfolio(
+        db,
+        portfolio_id,
+        mode="agent",
+    )
+
+    if report is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No snapshots found for this portfolio",
+        )
+
+    return report
