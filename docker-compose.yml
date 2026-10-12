@@ -1,12 +1,16 @@
 ﻿services:
 
   backend:
+
     build:
       context: .
       dockerfile: Dockerfile
 
     ports:
       - "8000:8000"
+
+    env_file:
+      - .env
 
     environment:
       DATABASE_URL: postgresql+psycopg2://volaren:volaren@postgres:5432/volaren
@@ -16,6 +20,7 @@
 
 
   postgres:
+
     image: postgres:16
 
     environment:

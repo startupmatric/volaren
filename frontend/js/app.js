@@ -5,6 +5,7 @@
 
 const API_URL = "http://127.0.0.1:8000";
 
+
 // =========================================================
 // DOM ELEMENTS
 // =========================================================
@@ -31,6 +32,8 @@ const whyContributors = document.getElementById("whyContributors");
 const whyDetractors = document.getElementById("whyDetractors");
 const whySectors = document.getElementById("whySectors");
 
+const whyToggleButtons = document.querySelectorAll(".why-toggle-btn");
+
 
 // =========================================================
 // STATE
@@ -38,6 +41,7 @@ const whySectors = document.getElementById("whySectors");
 
 let historyChart = null;
 let currentPortfolioId = null;
+let currentWhyMode = "brief"; // "brief" | "ai"
 
 
 // =========================================================
@@ -45,6 +49,7 @@ let currentPortfolioId = null;
 // =========================================================
 
 document.addEventListener("DOMContentLoaded", () => {
+
     if (uploadButton) {
         uploadButton.addEventListener("click", uploadPortfolio);
     }
@@ -52,7 +57,38 @@ document.addEventListener("DOMContentLoaded", () => {
     if (portfolioFile) {
         portfolioFile.addEventListener("change", handleFileSelection);
     }
+
+    whyToggleButtons.forEach(btn => {
+        btn.addEventListener("click", handleWhyToggle);
+    });
 });
+
+
+// =========================================================
+// WHY CARD TOGGLE
+// =========================================================
+
+function handleWhyToggle(event) {
+
+    const btn = event.currentTarget;
+    const mode = btn.dataset.mode;
+
+    if (mode === currentWhyMode) {
+        return;
+    }
+
+    currentWhyMode = mode;
+
+    whyToggleButtons.forEach(b => {
+        const isActive = b.dataset.mode === mode;
+        b.classList.toggle("active", isActive);
+        b.setAttribute("aria-selected", isActive ? "true" : "false");
+    });
+
+    if (currentPortfolioId) {
+        loadWhyCard(currentPortfolioId);
+    }
+}
 
 
 // =========================================================
@@ -60,6 +96,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // =========================================================
 
 function handleFileSelection() {
+
     const file = portfolioFile.files[0];
 
     if (!file) {
@@ -83,6 +120,7 @@ function handleFileSelection() {
 // =========================================================
 
 async function uploadPortfolio() {
+
     const file = portfolioFile.files[0];
 
     if (!file) {
@@ -106,6 +144,7 @@ async function uploadPortfolio() {
     formData.append("file", file);
 
     try {
+
         const response = await fetch(
             `${API_URL}/api/portfolio/upload`,
             {
@@ -115,16 +154,16 @@ async function uploadPortfolio() {
         );
 
         if (!response.ok) {
+
             let message = "Upload failed.";
 
             try {
                 const errorData = await response.json();
-
                 if (errorData.detail) {
                     message = errorData.detail;
                 }
             } catch (_) {
-                // Ignore JSON parsing errors.
+                // Ignore JSON parse errors.
             }
 
             throw new Error(message);
@@ -137,22 +176,17 @@ async function uploadPortfolio() {
         renderPortfolio(data);
 
         await loadChanges(data.portfolio_id);
-
         await loadPortfolioHistory(data.portfolio_id);
-
         await loadWhyCard(data.portfolio_id);
 
-        uploadStatus.textContent =
-            "Portfolio uploaded successfully.";
-
+        uploadStatus.textContent = "Portfolio uploaded successfully.";
         uploadStatus.className = "status-success";
 
     } catch (error) {
+
         console.error("Portfolio upload error:", error);
 
-        uploadStatus.textContent =
-            error.message || "Something went wrong.";
-
+        uploadStatus.textContent = error.message || "Something went wrong.";
         uploadStatus.className = "status-error";
 
     } finally {
@@ -166,16 +200,13 @@ async function uploadPortfolio() {
 // =========================================================
 
 function setUploadLoading(isLoading) {
-    if (!uploadButton) {
-        return;
-    }
+
+    if (!uploadButton) return;
 
     uploadButton.disabled = isLoading;
 
     if (isLoading) {
-        uploadButton.dataset.originalText =
-            uploadButton.innerHTML;
-
+        uploadButton.dataset.originalText = uploadButton.innerHTML;
         uploadButton.innerHTML = `
             <span class="button-loading">
                 Analyzing...
@@ -195,9 +226,8 @@ function setUploadLoading(isLoading) {
 // =========================================================
 
 async function loadChanges(portfolioId) {
-    if (!changesContent) {
-        return;
-    }
+
+    if (!changesContent) return;
 
     changesContent.innerHTML = `
         <p class="changes-empty">
@@ -206,6 +236,7 @@ async function loadChanges(portfolioId) {
     `;
 
     try {
+
         const response = await fetch(
             `${API_URL}/api/portfolio/${portfolioId}/changes`
         );
@@ -216,21 +247,18 @@ async function loadChanges(portfolioId) {
                     No previous snapshot to compare.
                 </p>
             `;
-
             return;
         }
 
         if (!response.ok) {
-            throw new Error(
-                `Changes request failed (${response.status})`
-            );
+            throw new Error(`Changes request failed (${response.status})`);
         }
 
         const diff = await response.json();
-
         renderChanges(diff);
 
     } catch (error) {
+
         console.error("Changes error:", error);
 
         changesContent.innerHTML = `
@@ -247,22 +275,22 @@ async function loadChanges(portfolioId) {
 // =========================================================
 
 async function loadPortfolioHistory(portfolioId) {
+
     try {
+
         const response = await fetch(
             `${API_URL}/api/portfolio/${portfolioId}/history`
         );
 
         if (!response.ok) {
-            throw new Error(
-                `History request failed (${response.status})`
-            );
+            throw new Error(`History request failed (${response.status})`);
         }
 
         const data = await response.json();
-
         renderHistory(data);
 
     } catch (error) {
+
         console.error("History error:", error);
 
         if (historySummary) {
@@ -277,13 +305,25 @@ async function loadPortfolioHistory(portfolioId) {
 
 
 // =========================================================
-// WHY DID MY PORTFOLIO MOVE?
+// WHY DID MY PORTFOLIO MOVE? — LOADER
 // =========================================================
 
 async function loadWhyCard(portfolioId) {
+
+    // Choose the explanation endpoint based on current mode
+    const explainUrl = currentWhyMode === "ai"
+        ? `${API_URL}/api/portfolio/${portfolioId}/explain/agent`
+        : `${API_URL}/api/portfolio/${portfolioId}/explain`;
+
+    const explainMethod = currentWhyMode === "ai" ? "POST" : "GET";
+
+    // Disable toggle buttons while loading
+    whyToggleButtons.forEach(b => { b.disabled = true; });
+
     try {
+
         const [explainRes, moversRes, attribRes] = await Promise.all([
-            fetch(`${API_URL}/api/portfolio/${portfolioId}/explain`),
+            fetch(explainUrl, { method: explainMethod }),
             fetch(`${API_URL}/api/portfolio/${portfolioId}/movers`),
             fetch(`${API_URL}/api/portfolio/${portfolioId}/attribution`),
         ]);
@@ -299,12 +339,18 @@ async function loadWhyCard(portfolioId) {
         renderWhyCard(explain, movers, attribution);
 
     } catch (error) {
+
         console.error("Why card error:", error);
 
         if (whyExplanation) {
             whyExplanation.textContent =
                 "Could not load portfolio attribution.";
         }
+
+    } finally {
+
+        // Re-enable toggle buttons
+        whyToggleButtons.forEach(b => { b.disabled = false; });
     }
 }
 
@@ -314,17 +360,13 @@ async function loadWhyCard(portfolioId) {
 // =========================================================
 
 function renderPortfolio(data) {
-    if (!portfolioSection) {
-        return;
-    }
+
+    if (!portfolioSection) return;
 
     portfolioSection.classList.remove("hidden");
 
     const portfolio = data.portfolio || {};
-
-    const holdings = Array.isArray(data.holdings)
-        ? data.holdings
-        : [];
+    const holdings = Array.isArray(data.holdings) ? data.holdings : [];
 
     if (portfolioValue) {
         portfolioValue.textContent =
@@ -335,24 +377,21 @@ function renderPortfolio(data) {
         holdingCount.textContent = holdings.length;
     }
 
-    if (!holdingsTable) {
-        return;
-    }
+    if (!holdingsTable) return;
 
     holdingsTable.innerHTML = "";
 
     if (!holdings.length) {
         holdingsTable.innerHTML = `
             <tr>
-                <td colspan="9">
-                    No holdings found.
-                </td>
+                <td colspan="9">No holdings found.</td>
             </tr>
         `;
         return;
     }
 
     holdings.forEach(holding => {
+
         const row = document.createElement("tr");
 
         const ticker = escapeHTML(holding.ticker || "-");
@@ -387,15 +426,12 @@ function renderPortfolio(data) {
 // =========================================================
 
 function renderChanges(diff) {
-    if (!changesContent) {
-        return;
-    }
+
+    if (!changesContent) return;
 
     if (!diff || typeof diff !== "object") {
         changesContent.innerHTML = `
-            <p class="changes-empty">
-                No change data available.
-            </p>
+            <p class="changes-empty">No change data available.</p>
         `;
         return;
     }
@@ -436,106 +472,72 @@ function renderChanges(diff) {
         </div>
     `);
 
-    const weightChanges = Array.isArray(diff.weight_changes)
-        ? diff.weight_changes : [];
-
+    const weightChanges = Array.isArray(diff.weight_changes) ? diff.weight_changes : [];
     if (weightChanges.length) {
         parts.push('<h3 class="changes-heading">Weight shifts</h3>');
         parts.push('<ul class="changes-list">');
-
         weightChanges.slice(0, 5).forEach(change => {
             const ticker = escapeHTML(change.ticker || "-");
             const before = Number(change.weight_before_pct || 0);
             const after = Number(change.weight_after_pct || 0);
             const delta = Number(change.weight_delta_pct || 0);
-
             parts.push(`
                 <li>
                     <span class="changes-ticker">${ticker}</span>
                     <span class="changes-values">
-                        ${formatPct(before)}
-                        <span class="change-arrow">→</span>
-                        ${formatPct(after)}
+                        ${formatPct(before)} <span class="change-arrow">→</span> ${formatPct(after)}
                     </span>
-                    <em class="${deltaClass(delta)}">
-                        ${formatDeltaPct(delta)}
-                    </em>
+                    <em class="${deltaClass(delta)}">${formatDeltaPct(delta)}</em>
                 </li>
             `);
         });
-
         parts.push('</ul>');
     }
 
-    const contributionChanges = Array.isArray(diff.contribution_changes)
-        ? diff.contribution_changes : [];
-
+    const contributionChanges = Array.isArray(diff.contribution_changes) ? diff.contribution_changes : [];
     if (contributionChanges.length) {
         parts.push('<h3 class="changes-heading">Contribution shifts</h3>');
         parts.push('<ul class="changes-list">');
-
         contributionChanges.slice(0, 5).forEach(change => {
             const ticker = escapeHTML(change.ticker || "-");
             const before = Number(change.contribution_before_pct || 0);
             const after = Number(change.contribution_after_pct || 0);
             const delta = Number(change.contribution_delta_pct || 0);
-
             parts.push(`
                 <li>
                     <span class="changes-ticker">${ticker}</span>
                     <span class="changes-values">
-                        ${formatPct(before)}
-                        <span class="change-arrow">→</span>
-                        ${formatPct(after)}
+                        ${formatPct(before)} <span class="change-arrow">→</span> ${formatPct(after)}
                     </span>
-                    <em class="${deltaClass(delta)}">
-                        ${formatDeltaPct(delta)}
-                    </em>
+                    <em class="${deltaClass(delta)}">${formatDeltaPct(delta)}</em>
                 </li>
             `);
         });
-
         parts.push('</ul>');
     }
 
-    const newPositions = Array.isArray(diff.new_positions)
-        ? diff.new_positions : [];
-
+    const newPositions = Array.isArray(diff.new_positions) ? diff.new_positions : [];
     if (newPositions.length) {
-        const formattedPositions = newPositions
-            .map(position => escapeHTML(position))
-            .join(", ");
-
+        const formattedPositions = newPositions.map(p => escapeHTML(p)).join(", ");
         parts.push(`
             <p class="changes-line">
-                <strong>New positions:</strong>
-                ${formattedPositions}
+                <strong>New positions:</strong> ${formattedPositions}
             </p>
         `);
     }
 
-    const closedPositions = Array.isArray(diff.closed_positions)
-        ? diff.closed_positions : [];
-
+    const closedPositions = Array.isArray(diff.closed_positions) ? diff.closed_positions : [];
     if (closedPositions.length) {
-        const formattedPositions = closedPositions
-            .map(position => escapeHTML(position))
-            .join(", ");
-
+        const formattedPositions = closedPositions.map(p => escapeHTML(p)).join(", ");
         parts.push(`
             <p class="changes-line">
-                <strong>Closed positions:</strong>
-                ${formattedPositions}
+                <strong>Closed positions:</strong> ${formattedPositions}
             </p>
         `);
     }
 
     if (parts.length === 1) {
-        parts.push(`
-            <p class="changes-empty">
-                No significant changes detected.
-            </p>
-        `);
+        parts.push('<p class="changes-empty">No significant changes detected.</p>');
     }
 
     changesContent.innerHTML = parts.join("");
@@ -553,30 +555,41 @@ function renderWhyCard(explain, movers, attribution) {
     }
 
     if (whyExplanation) {
-        whyExplanation.textContent = explain.explanation || "";
+
+        const source = explain.source || "deterministic";
+
+        const sourceLabel =
+            source === "llm"
+                ? "AI-generated"
+                : source === "deterministic_fallback"
+                    ? "Deterministic (fallback)"
+                    : "Deterministic";
+
+        const sourceClass =
+            source === "llm"
+                ? "why-source-llm"
+                : "why-source-deterministic";
+
+        whyExplanation.innerHTML = `
+            <span>${escapeHTML(explain.explanation || "")}</span>
+            <br>
+            <span class="why-source-badge ${sourceClass}">
+                ${sourceLabel}
+            </span>
+        `;
     }
 
     if (whyContributors) {
         whyContributors.innerHTML = "";
-
         const contributors = movers.top_contributors || [];
-
         if (!contributors.length) {
-            whyContributors.innerHTML = `
-                <li class="changes-empty">
-                    No positive contributors.
-                </li>
-            `;
+            whyContributors.innerHTML = '<li class="changes-empty">No positive contributors.</li>';
         } else {
             contributors.forEach(h => {
                 const li = document.createElement("li");
                 li.innerHTML = `
-                    <span class="why-list-ticker">
-                        ${escapeHTML(h.ticker)}
-                    </span>
-                    <span class="why-list-value delta-positive">
-                        ${formatPct(h.contribution_pct)}
-                    </span>
+                    <span class="why-list-ticker">${escapeHTML(h.ticker)}</span>
+                    <span class="why-list-value delta-positive">${formatPct(h.contribution_pct)}</span>
                 `;
                 whyContributors.appendChild(li);
             });
@@ -585,25 +598,15 @@ function renderWhyCard(explain, movers, attribution) {
 
     if (whyDetractors) {
         whyDetractors.innerHTML = "";
-
         const detractors = movers.top_detractors || [];
-
         if (!detractors.length) {
-            whyDetractors.innerHTML = `
-                <li class="changes-empty">
-                    No negative detractors.
-                </li>
-            `;
+            whyDetractors.innerHTML = '<li class="changes-empty">No negative detractors.</li>';
         } else {
             detractors.forEach(h => {
                 const li = document.createElement("li");
                 li.innerHTML = `
-                    <span class="why-list-ticker">
-                        ${escapeHTML(h.ticker)}
-                    </span>
-                    <span class="why-list-value delta-negative">
-                        ${formatPct(h.contribution_pct)}
-                    </span>
+                    <span class="why-list-ticker">${escapeHTML(h.ticker)}</span>
+                    <span class="why-list-value delta-negative">${formatPct(h.contribution_pct)}</span>
                 `;
                 whyDetractors.appendChild(li);
             });
@@ -612,35 +615,21 @@ function renderWhyCard(explain, movers, attribution) {
 
     if (whySectors) {
         whySectors.innerHTML = "";
-
         const sectors = attribution.sectors || [];
-
         if (!sectors.length) {
             whySectors.innerHTML = `
-                <tr>
-                    <td colspan="5" class="changes-empty">
-                        No sector data available.
-                    </td>
-                </tr>
+                <tr><td colspan="5" class="changes-empty">No sector data available.</td></tr>
             `;
         } else {
             sectors.forEach(sector => {
                 const row = document.createElement("tr");
-
-                const tickers = (sector.holdings || [])
-                    .map(escapeHTML)
-                    .join(", ");
-
-                const contribution = Number(
-                    sector.contribution_pct || 0
-                );
-
+                const tickers = (sector.holdings || []).map(escapeHTML).join(", ");
+                const contribution = Number(sector.contribution_pct || 0);
                 const cls = contribution > 0
                     ? "delta-positive"
                     : contribution < 0
                         ? "delta-negative"
                         : "delta-neutral";
-
                 row.innerHTML = `
                     <td>${escapeHTML(sector.sector)}</td>
                     <td>${formatPct(sector.weight_pct)}</td>
@@ -648,7 +637,6 @@ function renderWhyCard(explain, movers, attribution) {
                     <td class="${cls}">${formatPct(contribution)}</td>
                     <td>${tickers}</td>
                 `;
-
                 whySectors.appendChild(row);
             });
         }
@@ -661,13 +649,13 @@ function renderWhyCard(explain, movers, attribution) {
 // =========================================================
 
 function renderHistory(data) {
+
     const history = Array.isArray(data?.history) ? data.history : [];
     const summary = data?.summary || {};
 
     if (historySummary) {
         const totalReturn = Number(summary.total_return_pct || 0);
         const sign = totalReturn > 0 ? "+" : "";
-
         historySummary.innerHTML = `
             <strong>${formatCurrency(summary.current_value || 0)}</strong>
             <br>
@@ -684,19 +672,11 @@ function renderHistory(data) {
         return;
     }
 
-    const labels = history.map(snapshot =>
-        formatDate(snapshot.created_at)
-    );
-
-    const values = history.map(snapshot =>
-        Number(snapshot.portfolio_value || 0)
-    );
+    const labels = history.map(s => formatDate(s.created_at));
+    const values = history.map(s => Number(s.portfolio_value || 0));
 
     const canvas = document.getElementById("portfolioHistoryChart");
-
-    if (!canvas) {
-        return;
-    }
+    if (!canvas) return;
 
     destroyHistoryChart();
 
@@ -727,14 +707,8 @@ function renderHistory(data) {
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            interaction: {
-                intersect: false,
-                mode: "index"
-            },
-            animation: {
-                duration: 700,
-                easing: "easeOutQuart"
-            },
+            interaction: { intersect: false, mode: "index" },
+            animation: { duration: 700, easing: "easeOutQuart" },
             plugins: {
                 legend: { display: false },
                 tooltip: {
@@ -752,18 +726,13 @@ function renderHistory(data) {
                 }
             },
             scales: {
-                x: {
-                    grid: { display: false },
-                    ticks: { color: "#737373" }
-                },
+                x: { grid: { display: false }, ticks: { color: "#737373" } },
                 y: {
                     beginAtZero: false,
                     grid: { color: "#eeeeee" },
                     ticks: {
                         color: "#737373",
-                        callback: function(value) {
-                            return formatCurrency(value);
-                        }
+                        callback: function(value) { return formatCurrency(value); }
                     }
                 }
             }
@@ -785,7 +754,7 @@ function destroyHistoryChart() {
 
 
 // =========================================================
-// DELTA CLASS
+// FORMATTERS
 // =========================================================
 
 function deltaClass(value) {
@@ -795,32 +764,17 @@ function deltaClass(value) {
     return "delta-neutral";
 }
 
-
-// =========================================================
-// FORMAT DELTA CURRENCY
-// =========================================================
-
 function formatDeltaCurrency(value) {
     const number = Number(value) || 0;
     const sign = number > 0 ? "+" : "";
     return `${sign}${formatCurrency(number)}`;
 }
 
-
-// =========================================================
-// FORMAT DELTA PERCENTAGE
-// =========================================================
-
 function formatDeltaPct(value) {
     const number = Number(value) || 0;
     const sign = number > 0 ? "+" : "";
     return `${sign}${number.toFixed(2)}%`;
 }
-
-
-// =========================================================
-// FORMAT CURRENCY
-// =========================================================
 
 function formatCurrency(value) {
     return new Intl.NumberFormat("en-US", {
@@ -830,32 +784,17 @@ function formatCurrency(value) {
     }).format(Number(value) || 0);
 }
 
-
-// =========================================================
-// FORMAT CURRENCY WITH SIGN
-// =========================================================
-
 function formatCurrencyWithSign(value) {
     const number = Number(value) || 0;
     const sign = number > 0 ? "+" : "";
     return `${sign}${formatCurrency(number)}`;
 }
 
-
-// =========================================================
-// FORMAT PERCENTAGE
-// =========================================================
-
 function formatPct(value) {
     const number = Number(value) || 0;
     const sign = number >= 0 ? "+" : "";
     return `${sign}${number.toFixed(2)}%`;
 }
-
-
-// =========================================================
-// FORMAT NUMBER
-// =========================================================
 
 function formatNumber(value) {
     const number = Number(value) || 0;
@@ -864,16 +803,10 @@ function formatNumber(value) {
     }).format(number);
 }
 
-
-// =========================================================
-// FORMAT DATE
-// =========================================================
-
 function formatDate(dateString) {
     if (!dateString) return "-";
     const date = new Date(dateString);
     if (Number.isNaN(date.getTime())) return "-";
-
     return date.toLocaleDateString("en-US", {
         month: "short",
         day: "numeric",
@@ -881,11 +814,6 @@ function formatDate(dateString) {
         minute: "2-digit"
     });
 }
-
-
-// =========================================================
-// ESCAPE HTML
-// =========================================================
 
 function escapeHTML(value) {
     return String(value ?? "")

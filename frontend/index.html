@@ -4,25 +4,12 @@
 <head>
 
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Volaren Portfolio Intelligence — understand what changed in your portfolio.">
 
-    <meta
-        name="viewport"
-        content="width=device-width, initial-scale=1.0"
-    >
+    <title>Volaren — Portfolio Intelligence</title>
 
-    <meta
-        name="description"
-        content="Volaren Portfolio Intelligence — understand what changed in your portfolio."
-    >
-
-    <title>
-        Volaren — Portfolio Intelligence
-    </title>
-
-    <link
-        rel="stylesheet"
-        href="css/style.css"
-    >
+    <link rel="stylesheet" href="css/style.css">
 
 </head>
 
@@ -39,9 +26,7 @@
             <span>VOLAREN</span>
         </div>
 
-        <div class="nav-title">
-            Portfolio Intelligence
-        </div>
+        <div class="nav-title">Portfolio Intelligence</div>
 
     </div>
 
@@ -121,8 +106,6 @@
 
 
 
-        <!-- WHAT CHANGED -->
-
         <section class="changes-card" id="changesCard">
 
             <p class="eyebrow">INTELLIGENCE</p>
@@ -139,13 +122,38 @@
 
 
 
-        <!-- WHY DID YOUR PORTFOLIO MOVE? -->
-
         <section class="why-card" id="whyCard">
 
-            <p class="eyebrow">ATTRIBUTION</p>
+            <div class="why-header">
 
-            <h2>Why Did Your Portfolio Move?</h2>
+                <div>
+                    <p class="eyebrow">ATTRIBUTION</p>
+                    <h2>Why Did Your Portfolio Move?</h2>
+                </div>
+
+                <div class="why-toggle" role="tablist">
+
+                    <button
+                        type="button"
+                        class="why-toggle-btn active"
+                        data-mode="brief"
+                        aria-selected="true"
+                    >
+                        Brief
+                    </button>
+
+                    <button
+                        type="button"
+                        class="why-toggle-btn"
+                        data-mode="ai"
+                        aria-selected="false"
+                    >
+                        AI
+                    </button>
+
+                </div>
+
+            </div>
 
             <p id="whyHeadline" class="why-headline"></p>
 
@@ -193,8 +201,6 @@
 
 
 
-        <!-- HISTORY -->
-
         <section class="history-card" id="historySection">
 
             <div class="section-header">
@@ -215,8 +221,6 @@
         </section>
 
 
-
-        <!-- CURRENT HOLDINGS -->
 
         <section class="table-card">
 

@@ -1,6 +1,8 @@
 ﻿import os
 import tempfile
-
+from app.services.agent_explain_service import (
+    explain_portfolio_with_agent,
+)
 from fastapi import (
     APIRouter,
     Depends,
@@ -250,3 +252,33 @@ def get_portfolio_explanation(
         )
 
     return explanation
+@router.post("/{portfolio_id}/explain/agent")
+def get_portfolio_agent_explanation(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    LLM-powered explanation of the latest snapshot.
+
+    The numbers come from the deterministic attribution service.
+    The LLM only writes prose. If the LLM invents a number, the
+    agent's validation layer catches it and falls back to the
+    deterministic explanation.
+    """
+
+    result = explain_portfolio_with_agent(db, portfolio_id)
+
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No snapshots found for this portfolio",
+        )
+
+    # If the agent itself errored, surface a 500
+    if result.get("source") == "error":
+        raise HTTPException(
+            status_code=500,
+            detail="Agent failed to produce an explanation",
+        )
+
+    return result
