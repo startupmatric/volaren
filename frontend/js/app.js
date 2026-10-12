@@ -25,6 +25,12 @@ const historySummary = document.getElementById("historySummary");
 const portfolioHistoryChart =
     document.getElementById("portfolioHistoryChart");
 
+const whyHeadline = document.getElementById("whyHeadline");
+const whyExplanation = document.getElementById("whyExplanation");
+const whyContributors = document.getElementById("whyContributors");
+const whyDetractors = document.getElementById("whyDetractors");
+const whySectors = document.getElementById("whySectors");
+
 
 // =========================================================
 // STATE
@@ -134,6 +140,8 @@ async function uploadPortfolio() {
 
         await loadPortfolioHistory(data.portfolio_id);
 
+        await loadWhyCard(data.portfolio_id);
+
         uploadStatus.textContent =
             "Portfolio uploaded successfully.";
 
@@ -202,7 +210,6 @@ async function loadChanges(portfolioId) {
             `${API_URL}/api/portfolio/${portfolioId}/changes`
         );
 
-        // First snapshot.
         if (response.status === 404) {
             changesContent.innerHTML = `
                 <p class="changes-empty">
@@ -270,6 +277,39 @@ async function loadPortfolioHistory(portfolioId) {
 
 
 // =========================================================
+// WHY DID MY PORTFOLIO MOVE?
+// =========================================================
+
+async function loadWhyCard(portfolioId) {
+    try {
+        const [explainRes, moversRes, attribRes] = await Promise.all([
+            fetch(`${API_URL}/api/portfolio/${portfolioId}/explain`),
+            fetch(`${API_URL}/api/portfolio/${portfolioId}/movers`),
+            fetch(`${API_URL}/api/portfolio/${portfolioId}/attribution`),
+        ]);
+
+        if (!explainRes.ok || !moversRes.ok || !attribRes.ok) {
+            throw new Error("Why-card fetch failed");
+        }
+
+        const explain = await explainRes.json();
+        const movers = await moversRes.json();
+        const attribution = await attribRes.json();
+
+        renderWhyCard(explain, movers, attribution);
+
+    } catch (error) {
+        console.error("Why card error:", error);
+
+        if (whyExplanation) {
+            whyExplanation.textContent =
+                "Could not load portfolio attribution.";
+        }
+    }
+}
+
+
+// =========================================================
 // RENDER PORTFOLIO
 // =========================================================
 
@@ -286,28 +326,14 @@ function renderPortfolio(data) {
         ? data.holdings
         : [];
 
-    // -------------------------------------------------------
-    // Portfolio Value
-    // -------------------------------------------------------
-
     if (portfolioValue) {
         portfolioValue.textContent =
-            formatCurrency(
-                portfolio.portfolio_value || 0
-            );
+            formatCurrency(portfolio.portfolio_value || 0);
     }
-
-    // -------------------------------------------------------
-    // Holding Count
-    // -------------------------------------------------------
 
     if (holdingCount) {
         holdingCount.textContent = holdings.length;
     }
-
-    // -------------------------------------------------------
-    // Holdings Table
-    // -------------------------------------------------------
 
     if (!holdingsTable) {
         return;
@@ -323,85 +349,32 @@ function renderPortfolio(data) {
                 </td>
             </tr>
         `;
-
         return;
     }
 
     holdings.forEach(holding => {
         const row = document.createElement("tr");
 
-        const ticker = escapeHTML(
-            holding.ticker || "-"
-        );
-
-        const shares = Number(
-            holding.shares || 0
-        );
-
-        const avgPrice = Number(
-            holding.avg_price || 0
-        );
-
-        const currentPrice = Number(
-            holding.current_price || 0
-        );
-
-        const positionValue = Number(
-            holding.position_value || 0
-        );
-
-        const returnPct = Number(
-            holding.return_pct || 0
-        );
-
-        const weightPct = Number(
-            holding.weight_pct || 0
-        );
-
-        const contributionPct = Number(
-            holding.contribution_pct || 0
-        );
-
-        const pnl = Number(
-            holding.pnl || 0
-        );
+        const ticker = escapeHTML(holding.ticker || "-");
+        const shares = Number(holding.shares || 0);
+        const avgPrice = Number(holding.avg_price || 0);
+        const currentPrice = Number(holding.current_price || 0);
+        const positionValue = Number(holding.position_value || 0);
+        const returnPct = Number(holding.return_pct || 0);
+        const weightPct = Number(holding.weight_pct || 0);
+        const contributionPct = Number(holding.contribution_pct || 0);
+        const pnl = Number(holding.pnl || 0);
 
         row.innerHTML = `
-            <td>
-                <strong>${ticker}</strong>
-            </td>
-
-            <td>
-                ${formatNumber(shares)}
-            </td>
-
-            <td>
-                ${formatCurrency(avgPrice)}
-            </td>
-
-            <td>
-                ${formatCurrency(currentPrice)}
-            </td>
-
-            <td>
-                ${formatCurrency(positionValue)}
-            </td>
-
-            <td class="${deltaClass(returnPct)}">
-                ${formatPct(returnPct)}
-            </td>
-
-            <td>
-                ${formatPct(weightPct)}
-            </td>
-
-            <td class="${deltaClass(contributionPct)}">
-                ${formatPct(contributionPct)}
-            </td>
-
-            <td class="${deltaClass(pnl)}">
-                ${formatCurrencyWithSign(pnl)}
-            </td>
+            <td><strong>${ticker}</strong></td>
+            <td>${formatNumber(shares)}</td>
+            <td>${formatCurrency(avgPrice)}</td>
+            <td>${formatCurrency(currentPrice)}</td>
+            <td>${formatCurrency(positionValue)}</td>
+            <td class="${deltaClass(returnPct)}">${formatPct(returnPct)}</td>
+            <td>${formatPct(weightPct)}</td>
+            <td class="${deltaClass(contributionPct)}">${formatPct(contributionPct)}</td>
+            <td class="${deltaClass(pnl)}">${formatCurrencyWithSign(pnl)}</td>
         `;
 
         holdingsTable.appendChild(row);
@@ -424,308 +397,140 @@ function renderChanges(diff) {
                 No change data available.
             </p>
         `;
-
         return;
     }
 
     const parts = [];
 
-    // -------------------------------------------------------
-    // PORTFOLIO SUMMARY
-    // -------------------------------------------------------
-
-    const valueBefore =
-        Number(diff.portfolio_value_before || 0);
-
-    const valueAfter =
-        Number(diff.portfolio_value_after || 0);
-
-    const valueDelta =
-        Number(diff.portfolio_value_delta || 0);
-
-    const returnBefore =
-        Number(diff.return_pct_before || 0);
-
-    const returnAfter =
-        Number(diff.return_pct_after || 0);
-
-    const returnDelta =
-        Number(diff.return_pct_delta || 0);
+    const valueBefore = Number(diff.portfolio_value_before || 0);
+    const valueAfter = Number(diff.portfolio_value_after || 0);
+    const valueDelta = Number(diff.portfolio_value_delta || 0);
+    const returnBefore = Number(diff.return_pct_before || 0);
+    const returnAfter = Number(diff.return_pct_after || 0);
+    const returnDelta = Number(diff.return_pct_delta || 0);
 
     parts.push(`
         <div class="changes-summary">
-
             <div class="changes-summary-item">
-
-                <span>
-                    Portfolio value
-                </span>
-
+                <span>Portfolio value</span>
                 <strong>
-
                     ${formatCurrency(valueBefore)}
-
-                    <span class="change-arrow">
-                        →
-                    </span>
-
+                    <span class="change-arrow">→</span>
                     ${formatCurrency(valueAfter)}
-
                     <em class="${deltaClass(valueDelta)}">
                         (${formatDeltaCurrency(valueDelta)})
                     </em>
-
                 </strong>
-
             </div>
-
-
             <div class="changes-summary-item">
-
-                <span>
-                    Return
-                </span>
-
+                <span>Return</span>
                 <strong>
-
                     ${formatPct(returnBefore)}
-
-                    <span class="change-arrow">
-                        →
-                    </span>
-
+                    <span class="change-arrow">→</span>
                     ${formatPct(returnAfter)}
-
                     <em class="${deltaClass(returnDelta)}">
                         (${formatDeltaPct(returnDelta)})
                     </em>
-
                 </strong>
-
             </div>
-
         </div>
     `);
 
-
-    // -------------------------------------------------------
-    // WEIGHT CHANGES
-    // -------------------------------------------------------
-
-    const weightChanges =
-        Array.isArray(diff.weight_changes)
-            ? diff.weight_changes
-            : [];
+    const weightChanges = Array.isArray(diff.weight_changes)
+        ? diff.weight_changes : [];
 
     if (weightChanges.length) {
+        parts.push('<h3 class="changes-heading">Weight shifts</h3>');
+        parts.push('<ul class="changes-list">');
 
-        parts.push(`
-            <h3 class="changes-heading">
-                Weight shifts
-            </h3>
-        `);
+        weightChanges.slice(0, 5).forEach(change => {
+            const ticker = escapeHTML(change.ticker || "-");
+            const before = Number(change.weight_before_pct || 0);
+            const after = Number(change.weight_after_pct || 0);
+            const delta = Number(change.weight_delta_pct || 0);
 
-        parts.push(`
-            <ul class="changes-list">
-        `);
+            parts.push(`
+                <li>
+                    <span class="changes-ticker">${ticker}</span>
+                    <span class="changes-values">
+                        ${formatPct(before)}
+                        <span class="change-arrow">→</span>
+                        ${formatPct(after)}
+                    </span>
+                    <em class="${deltaClass(delta)}">
+                        ${formatDeltaPct(delta)}
+                    </em>
+                </li>
+            `);
+        });
 
-        weightChanges
-            .slice(0, 5)
-            .forEach(change => {
-
-                const ticker =
-                    escapeHTML(change.ticker || "-");
-
-                const before =
-                    Number(
-                        change.weight_before_pct || 0
-                    );
-
-                const after =
-                    Number(
-                        change.weight_after_pct || 0
-                    );
-
-                const delta =
-                    Number(
-                        change.weight_delta_pct || 0
-                    );
-
-                parts.push(`
-                    <li>
-
-                        <span class="changes-ticker">
-                            ${ticker}
-                        </span>
-
-                        <span class="changes-values">
-
-                            ${formatPct(before)}
-
-                            <span class="change-arrow">
-                                →
-                            </span>
-
-                            ${formatPct(after)}
-
-                        </span>
-
-                        <em class="${deltaClass(delta)}">
-                            ${formatDeltaPct(delta)}
-                        </em>
-
-                    </li>
-                `);
-            });
-
-        parts.push(`
-            </ul>
-        `);
+        parts.push('</ul>');
     }
 
-
-    // -------------------------------------------------------
-    // CONTRIBUTION CHANGES
-    // -------------------------------------------------------
-
-    const contributionChanges =
-        Array.isArray(diff.contribution_changes)
-            ? diff.contribution_changes
-            : [];
+    const contributionChanges = Array.isArray(diff.contribution_changes)
+        ? diff.contribution_changes : [];
 
     if (contributionChanges.length) {
+        parts.push('<h3 class="changes-heading">Contribution shifts</h3>');
+        parts.push('<ul class="changes-list">');
 
-        parts.push(`
-            <h3 class="changes-heading">
-                Contribution shifts
-            </h3>
-        `);
+        contributionChanges.slice(0, 5).forEach(change => {
+            const ticker = escapeHTML(change.ticker || "-");
+            const before = Number(change.contribution_before_pct || 0);
+            const after = Number(change.contribution_after_pct || 0);
+            const delta = Number(change.contribution_delta_pct || 0);
 
-        parts.push(`
-            <ul class="changes-list">
-        `);
+            parts.push(`
+                <li>
+                    <span class="changes-ticker">${ticker}</span>
+                    <span class="changes-values">
+                        ${formatPct(before)}
+                        <span class="change-arrow">→</span>
+                        ${formatPct(after)}
+                    </span>
+                    <em class="${deltaClass(delta)}">
+                        ${formatDeltaPct(delta)}
+                    </em>
+                </li>
+            `);
+        });
 
-        contributionChanges
-            .slice(0, 5)
-            .forEach(change => {
-
-                const ticker =
-                    escapeHTML(change.ticker || "-");
-
-                const before =
-                    Number(
-                        change.contribution_before_pct || 0
-                    );
-
-                const after =
-                    Number(
-                        change.contribution_after_pct || 0
-                    );
-
-                const delta =
-                    Number(
-                        change.contribution_delta_pct || 0
-                    );
-
-                parts.push(`
-                    <li>
-
-                        <span class="changes-ticker">
-                            ${ticker}
-                        </span>
-
-                        <span class="changes-values">
-
-                            ${formatPct(before)}
-
-                            <span class="change-arrow">
-                                →
-                            </span>
-
-                            ${formatPct(after)}
-
-                        </span>
-
-                        <em class="${deltaClass(delta)}">
-                            ${formatDeltaPct(delta)}
-                        </em>
-
-                    </li>
-                `);
-            });
-
-        parts.push(`
-            </ul>
-        `);
+        parts.push('</ul>');
     }
 
-
-    // -------------------------------------------------------
-    // NEW POSITIONS
-    // -------------------------------------------------------
-
-    const newPositions =
-        Array.isArray(diff.new_positions)
-            ? diff.new_positions
-            : [];
+    const newPositions = Array.isArray(diff.new_positions)
+        ? diff.new_positions : [];
 
     if (newPositions.length) {
-
-        const formattedPositions =
-            newPositions
-                .map(position => escapeHTML(position))
-                .join(", ");
+        const formattedPositions = newPositions
+            .map(position => escapeHTML(position))
+            .join(", ");
 
         parts.push(`
             <p class="changes-line">
-
-                <strong>
-                    New positions:
-                </strong>
-
+                <strong>New positions:</strong>
                 ${formattedPositions}
-
             </p>
         `);
     }
 
-
-    // -------------------------------------------------------
-    // CLOSED POSITIONS
-    // -------------------------------------------------------
-
-    const closedPositions =
-        Array.isArray(diff.closed_positions)
-            ? diff.closed_positions
-            : [];
+    const closedPositions = Array.isArray(diff.closed_positions)
+        ? diff.closed_positions : [];
 
     if (closedPositions.length) {
-
-        const formattedPositions =
-            closedPositions
-                .map(position => escapeHTML(position))
-                .join(", ");
+        const formattedPositions = closedPositions
+            .map(position => escapeHTML(position))
+            .join(", ");
 
         parts.push(`
             <p class="changes-line">
-
-                <strong>
-                    Closed positions:
-                </strong>
-
+                <strong>Closed positions:</strong>
                 ${formattedPositions}
-
             </p>
         `);
     }
 
-
-    // -------------------------------------------------------
-    // EMPTY CHANGE STATE
-    // -------------------------------------------------------
-
     if (parts.length === 1) {
-
         parts.push(`
             <p class="changes-empty">
                 No significant changes detected.
@@ -733,9 +538,121 @@ function renderChanges(diff) {
         `);
     }
 
+    changesContent.innerHTML = parts.join("");
+}
 
-    changesContent.innerHTML =
-        parts.join("");
+
+// =========================================================
+// RENDER WHY CARD
+// =========================================================
+
+function renderWhyCard(explain, movers, attribution) {
+
+    if (whyHeadline) {
+        whyHeadline.textContent = explain.headline || "";
+    }
+
+    if (whyExplanation) {
+        whyExplanation.textContent = explain.explanation || "";
+    }
+
+    if (whyContributors) {
+        whyContributors.innerHTML = "";
+
+        const contributors = movers.top_contributors || [];
+
+        if (!contributors.length) {
+            whyContributors.innerHTML = `
+                <li class="changes-empty">
+                    No positive contributors.
+                </li>
+            `;
+        } else {
+            contributors.forEach(h => {
+                const li = document.createElement("li");
+                li.innerHTML = `
+                    <span class="why-list-ticker">
+                        ${escapeHTML(h.ticker)}
+                    </span>
+                    <span class="why-list-value delta-positive">
+                        ${formatPct(h.contribution_pct)}
+                    </span>
+                `;
+                whyContributors.appendChild(li);
+            });
+        }
+    }
+
+    if (whyDetractors) {
+        whyDetractors.innerHTML = "";
+
+        const detractors = movers.top_detractors || [];
+
+        if (!detractors.length) {
+            whyDetractors.innerHTML = `
+                <li class="changes-empty">
+                    No negative detractors.
+                </li>
+            `;
+        } else {
+            detractors.forEach(h => {
+                const li = document.createElement("li");
+                li.innerHTML = `
+                    <span class="why-list-ticker">
+                        ${escapeHTML(h.ticker)}
+                    </span>
+                    <span class="why-list-value delta-negative">
+                        ${formatPct(h.contribution_pct)}
+                    </span>
+                `;
+                whyDetractors.appendChild(li);
+            });
+        }
+    }
+
+    if (whySectors) {
+        whySectors.innerHTML = "";
+
+        const sectors = attribution.sectors || [];
+
+        if (!sectors.length) {
+            whySectors.innerHTML = `
+                <tr>
+                    <td colspan="5" class="changes-empty">
+                        No sector data available.
+                    </td>
+                </tr>
+            `;
+        } else {
+            sectors.forEach(sector => {
+                const row = document.createElement("tr");
+
+                const tickers = (sector.holdings || [])
+                    .map(escapeHTML)
+                    .join(", ");
+
+                const contribution = Number(
+                    sector.contribution_pct || 0
+                );
+
+                const cls = contribution > 0
+                    ? "delta-positive"
+                    : contribution < 0
+                        ? "delta-negative"
+                        : "delta-neutral";
+
+                row.innerHTML = `
+                    <td>${escapeHTML(sector.sector)}</td>
+                    <td>${formatPct(sector.weight_pct)}</td>
+                    <td>${formatPct(sector.return_pct)}</td>
+                    <td class="${cls}">${formatPct(contribution)}</td>
+                    <td>${tickers}</td>
+                `;
+
+                whySectors.appendChild(row);
+            });
+        }
+    }
 }
 
 
@@ -744,71 +661,28 @@ function renderChanges(diff) {
 // =========================================================
 
 function renderHistory(data) {
-
-    const history =
-        Array.isArray(data?.history)
-            ? data.history
-            : [];
-
-    const summary =
-        data?.summary || {};
-
-
-    // -------------------------------------------------------
-    // SUMMARY
-    // -------------------------------------------------------
+    const history = Array.isArray(data?.history) ? data.history : [];
+    const summary = data?.summary || {};
 
     if (historySummary) {
-
-        const totalReturn =
-            Number(summary.total_return_pct || 0);
-
-        const sign =
-            totalReturn > 0
-                ? "+"
-                : "";
+        const totalReturn = Number(summary.total_return_pct || 0);
+        const sign = totalReturn > 0 ? "+" : "";
 
         historySummary.innerHTML = `
-            <strong>
-                ${formatCurrency(
-                    summary.current_value || 0
-                )}
-            </strong>
-
+            <strong>${formatCurrency(summary.current_value || 0)}</strong>
             <br>
-
             <span class="${deltaClass(totalReturn)}">
                 ${sign}${totalReturn.toFixed(2)}%
             </span>
-
-            <span>
-                since first snapshot
-            </span>
-
-            <span>
-                (${Number(
-                    summary.snapshot_count || 0
-                )} snapshots)
-            </span>
+            <span>since first snapshot</span>
+            <span>(${Number(summary.snapshot_count || 0)} snapshots)</span>
         `;
     }
 
-
-    // -------------------------------------------------------
-    // NO HISTORY
-    // -------------------------------------------------------
-
     if (!history.length) {
-
         destroyHistoryChart();
-
         return;
     }
-
-
-    // -------------------------------------------------------
-    // CHART DATA
-    // -------------------------------------------------------
 
     const labels = history.map(snapshot =>
         formatDate(snapshot.created_at)
@@ -818,175 +692,83 @@ function renderHistory(data) {
         Number(snapshot.portfolio_value || 0)
     );
 
-
-    // -------------------------------------------------------
-    // CANVAS
-    // -------------------------------------------------------
-
-    const canvas =
-        document.getElementById(
-            "portfolioHistoryChart"
-        );
+    const canvas = document.getElementById("portfolioHistoryChart");
 
     if (!canvas) {
         return;
     }
 
-
-    // -------------------------------------------------------
-    // DESTROY OLD CHART
-    // -------------------------------------------------------
-
     destroyHistoryChart();
 
-
-    // -------------------------------------------------------
-    // CREATE CHART
-    // -------------------------------------------------------
-
     if (typeof Chart === "undefined") {
-
-        console.error(
-            "Chart.js is not loaded."
-        );
-
+        console.error("Chart.js is not loaded.");
         return;
     }
 
-
-    historyChart = new Chart(
-        canvas,
-        {
-            type: "line",
-
-            data: {
-                labels: labels,
-
-                datasets: [
-                    {
-                        label: "Portfolio Value",
-
-                        data: values,
-
-                        tension: 0.3,
-
-                        borderWidth: 2,
-
-                        pointRadius: 4,
-
-                        pointHoverRadius: 6,
-
-                        borderColor: "#111111",
-
-                        backgroundColor:
-                            "rgba(255, 90, 31, 0.08)",
-
-                        pointBackgroundColor:
-                            "#ff5a1f",
-
-                        pointBorderColor:
-                            "#ffffff",
-
-                        pointBorderWidth: 2,
-
-                        fill: true
-                    }
-                ]
+    historyChart = new Chart(canvas, {
+        type: "line",
+        data: {
+            labels: labels,
+            datasets: [{
+                label: "Portfolio Value",
+                data: values,
+                tension: 0.3,
+                borderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                borderColor: "#111111",
+                backgroundColor: "rgba(255, 90, 31, 0.08)",
+                pointBackgroundColor: "#ff5a1f",
+                pointBorderColor: "#ffffff",
+                pointBorderWidth: 2,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: {
+                intersect: false,
+                mode: "index"
             },
-
-            options: {
-
-                responsive: true,
-
-                maintainAspectRatio: false,
-
-                interaction: {
-                    intersect: false,
-                    mode: "index"
-                },
-
-                animation: {
-                    duration: 700,
-                    easing: "easeOutQuart"
-                },
-
-                plugins: {
-
-                    legend: {
-                        display: false
-                    },
-
-                    tooltip: {
-
-                        backgroundColor:
-                            "#111111",
-
-                        titleColor:
-                            "#ffffff",
-
-                        bodyColor:
-                            "#ffffff",
-
-                        borderColor:
-                            "#ff5a1f",
-
-                        borderWidth: 1,
-
-                        padding: 12,
-
-                        callbacks: {
-
-                            label: function(context) {
-
-                                return (
-                                    " Value: " +
-                                    formatCurrency(
-                                        context.parsed.y
-                                    )
-                                );
-                            }
+            animation: {
+                duration: 700,
+                easing: "easeOutQuart"
+            },
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    backgroundColor: "#111111",
+                    titleColor: "#ffffff",
+                    bodyColor: "#ffffff",
+                    borderColor: "#ff5a1f",
+                    borderWidth: 1,
+                    padding: 12,
+                    callbacks: {
+                        label: function(context) {
+                            return " Value: " + formatCurrency(context.parsed.y);
                         }
                     }
+                }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { color: "#737373" }
                 },
-
-                scales: {
-
-                    x: {
-
-                        grid: {
-                            display: false
-                        },
-
-                        ticks: {
-                            color: "#737373"
-                        }
-                    },
-
-                    y: {
-
-                        beginAtZero: false,
-
-                        grid: {
-                            color: "#eeeeee"
-                        },
-
-                        ticks: {
-
-                            color: "#737373",
-
-                            callback:
-                                function(value) {
-
-                                    return formatCurrency(
-                                        value
-                                    );
-                                }
+                y: {
+                    beginAtZero: false,
+                    grid: { color: "#eeeeee" },
+                    ticks: {
+                        color: "#737373",
+                        callback: function(value) {
+                            return formatCurrency(value);
                         }
                     }
                 }
             }
         }
-    );
+    });
 }
 
 
@@ -995,11 +777,8 @@ function renderHistory(data) {
 // =========================================================
 
 function destroyHistoryChart() {
-
     if (historyChart) {
-
         historyChart.destroy();
-
         historyChart = null;
     }
 }
@@ -1010,18 +789,9 @@ function destroyHistoryChart() {
 // =========================================================
 
 function deltaClass(value) {
-
-    const number =
-        Number(value) || 0;
-
-    if (number > 0) {
-        return "delta-positive";
-    }
-
-    if (number < 0) {
-        return "delta-negative";
-    }
-
+    const number = Number(value) || 0;
+    if (number > 0) return "delta-positive";
+    if (number < 0) return "delta-negative";
     return "delta-neutral";
 }
 
@@ -1031,15 +801,8 @@ function deltaClass(value) {
 // =========================================================
 
 function formatDeltaCurrency(value) {
-
-    const number =
-        Number(value) || 0;
-
-    const sign =
-        number > 0
-            ? "+"
-            : "";
-
+    const number = Number(value) || 0;
+    const sign = number > 0 ? "+" : "";
     return `${sign}${formatCurrency(number)}`;
 }
 
@@ -1049,15 +812,8 @@ function formatDeltaCurrency(value) {
 // =========================================================
 
 function formatDeltaPct(value) {
-
-    const number =
-        Number(value) || 0;
-
-    const sign =
-        number > 0
-            ? "+"
-            : "";
-
+    const number = Number(value) || 0;
+    const sign = number > 0 ? "+" : "";
     return `${sign}${number.toFixed(2)}%`;
 }
 
@@ -1067,19 +823,11 @@ function formatDeltaPct(value) {
 // =========================================================
 
 function formatCurrency(value) {
-
-    return new Intl.NumberFormat(
-        "en-US",
-        {
-            style: "currency",
-
-            currency: "USD",
-
-            maximumFractionDigits: 2
-        }
-    ).format(
-        Number(value) || 0
-    );
+    return new Intl.NumberFormat("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 2
+    }).format(Number(value) || 0);
 }
 
 
@@ -1088,15 +836,8 @@ function formatCurrency(value) {
 // =========================================================
 
 function formatCurrencyWithSign(value) {
-
-    const number =
-        Number(value) || 0;
-
-    const sign =
-        number > 0
-            ? "+"
-            : "";
-
+    const number = Number(value) || 0;
+    const sign = number > 0 ? "+" : "";
     return `${sign}${formatCurrency(number)}`;
 }
 
@@ -1106,15 +847,8 @@ function formatCurrencyWithSign(value) {
 // =========================================================
 
 function formatPct(value) {
-
-    const number =
-        Number(value) || 0;
-
-    const sign =
-        number >= 0
-            ? "+"
-            : "";
-
+    const number = Number(value) || 0;
+    const sign = number >= 0 ? "+" : "";
     return `${sign}${number.toFixed(2)}%`;
 }
 
@@ -1124,16 +858,10 @@ function formatPct(value) {
 // =========================================================
 
 function formatNumber(value) {
-
-    const number =
-        Number(value) || 0;
-
-    return new Intl.NumberFormat(
-        "en-US",
-        {
-            maximumFractionDigits: 4
-        }
-    ).format(number);
+    const number = Number(value) || 0;
+    return new Intl.NumberFormat("en-US", {
+        maximumFractionDigits: 4
+    }).format(number);
 }
 
 
@@ -1142,27 +870,16 @@ function formatNumber(value) {
 // =========================================================
 
 function formatDate(dateString) {
+    if (!dateString) return "-";
+    const date = new Date(dateString);
+    if (Number.isNaN(date.getTime())) return "-";
 
-    if (!dateString) {
-        return "-";
-    }
-
-    const date =
-        new Date(dateString);
-
-    if (Number.isNaN(date.getTime())) {
-        return "-";
-    }
-
-    return date.toLocaleDateString(
-        "en-US",
-        {
-            month: "short",
-            day: "numeric",
-            hour: "2-digit",
-            minute: "2-digit"
-        }
-    );
+    return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit"
+    });
 }
 
 
@@ -1171,7 +888,6 @@ function formatDate(dateString) {
 // =========================================================
 
 function escapeHTML(value) {
-
     return String(value ?? "")
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")

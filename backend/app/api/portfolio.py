@@ -18,7 +18,6 @@ from app.services.performance_service import (
     calculate_portfolio_metrics,
 )
 from app.services.persistence_service import (
-    get_latest_snapshots,
     get_or_create_portfolio,
     list_portfolios,
     save_snapshot,
@@ -28,6 +27,11 @@ from app.services.history_service import (
     get_historical_summary,
     get_snapshot_history,
 )
+from app.services.attribution_service import (
+    get_movers,
+    get_sector_attribution,
+)
+from app.services.explain_service import explain_attribution
 
 
 router = APIRouter(
@@ -35,6 +39,10 @@ router = APIRouter(
     tags=["Portfolio"],
 )
 
+
+# =========================================================
+# UPLOAD
+# =========================================================
 
 @router.post("/upload")
 async def upload_portfolio(
@@ -94,6 +102,10 @@ async def upload_portfolio(
         os.unlink(temp_path)
 
 
+# =========================================================
+# LIST PORTFOLIOS
+# =========================================================
+
 @router.get("/")
 def get_portfolios(db: Session = Depends(get_db)):
     portfolios = list_portfolios(db)
@@ -110,6 +122,10 @@ def get_portfolios(db: Session = Depends(get_db)):
         ]
     }
 
+
+# =========================================================
+# SNAPSHOTS
+# =========================================================
 
 @router.get("/{portfolio_id}/snapshots")
 def get_snapshots(
@@ -137,6 +153,10 @@ def get_snapshots(
     }
 
 
+# =========================================================
+# WHAT CHANGED (DIFF)
+# =========================================================
+
 @router.get("/{portfolio_id}/changes")
 def get_changes(
     portfolio_id: int,
@@ -153,6 +173,10 @@ def get_changes(
     return diff
 
 
+# =========================================================
+# HISTORY
+# =========================================================
+
 @router.get("/{portfolio_id}/history")
 def get_portfolio_history(
     portfolio_id: int,
@@ -166,3 +190,63 @@ def get_portfolio_history(
         "summary": summary,
         "history": history,
     }
+
+
+# =========================================================
+# MOVERS (Day 5)
+# =========================================================
+
+@router.get("/{portfolio_id}/movers")
+def get_portfolio_movers(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+):
+    movers = get_movers(db, portfolio_id)
+
+    if movers is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No snapshots found for this portfolio",
+        )
+
+    return movers
+
+
+# =========================================================
+# SECTOR ATTRIBUTION (Day 5)
+# =========================================================
+
+@router.get("/{portfolio_id}/attribution")
+def get_portfolio_attribution(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+):
+    attribution = get_sector_attribution(db, portfolio_id)
+
+    if attribution is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No snapshots found for this portfolio",
+        )
+
+    return attribution
+
+
+# =========================================================
+# EXPLAIN (Day 5)
+# =========================================================
+
+@router.get("/{portfolio_id}/explain")
+def get_portfolio_explanation(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+):
+    explanation = explain_attribution(db, portfolio_id)
+
+    if explanation is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No snapshots found for this portfolio",
+        )
+
+    return explanation

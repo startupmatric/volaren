@@ -30,26 +30,14 @@
 <body>
 
 
-<!-- =====================================================
-     NAVIGATION
-===================================================== -->
-
 <header class="navbar">
 
     <div class="container header-inner">
 
         <div class="logo">
-
-            <div class="logo-mark">
-                V
-            </div>
-
-            <span>
-                VOLAREN
-            </span>
-
+            <div class="logo-mark">V</div>
+            <span>VOLAREN</span>
         </div>
-
 
         <div class="nav-title">
             Portfolio Intelligence
@@ -61,26 +49,14 @@
 
 
 
-<!-- =====================================================
-     MAIN
-===================================================== -->
-
 <main class="container">
 
 
-    <!-- =================================================
-         HERO
-    ================================================== -->
-
     <section class="page-header">
 
-        <p class="eyebrow">
-            PORTFOLIO INTELLIGENCE
-        </p>
+        <p class="eyebrow">PORTFOLIO INTELLIGENCE</p>
 
-        <h1>
-            Understand what changed.
-        </h1>
+        <h1>Understand what changed.</h1>
 
         <p>
             Track portfolio performance, allocation shifts,
@@ -91,44 +67,24 @@
 
 
 
-    <!-- =================================================
-         UPLOAD
-    ================================================== -->
-
     <section class="upload-card">
 
-        <p class="eyebrow">
-            DATA INGESTION
-        </p>
+        <p class="eyebrow">DATA INGESTION</p>
 
-        <h2 class="upload-title">
-            Upload your portfolio
-        </h2>
+        <h2 class="upload-title">Upload your portfolio</h2>
 
         <p class="upload-description">
             Upload a CSV snapshot to analyze your portfolio
             and compare it with previous snapshots.
         </p>
 
-
-        <input
-            type="file"
-            id="portfolioFile"
-            accept=".csv"
-        >
-
+        <input type="file" id="portfolioFile" accept=".csv">
 
         <br><br>
 
-
-        <button
-            id="uploadButton"
-            type="button"
-        >
-            Analyze Portfolio
-            <span>→</span>
+        <button id="uploadButton" type="button">
+            Analyze Portfolio <span>→</span>
         </button>
-
 
         <p id="uploadStatus"></p>
 
@@ -136,115 +92,100 @@
 
 
 
-    <!-- =================================================
-         PORTFOLIO
-    ================================================== -->
+    <section id="portfolioSection" class="hidden">
 
-    <section
-        id="portfolioSection"
-        class="hidden"
-    >
-
-
-        <!-- =============================================
-             KPI METRICS
-        ============================================== -->
 
         <div class="metrics-grid">
 
-
-            <!-- Portfolio Value -->
-
             <div class="metric-card">
-
-                <span class="metric-label">
-                    Portfolio Value
-                </span>
-
-                <div
-                    id="portfolioValue"
-                    class="metric-value"
-                >
-                    $0
-                </div>
-
+                <span class="metric-label">Portfolio Value</span>
+                <div id="portfolioValue" class="metric-value">$0</div>
             </div>
 
-
-            <!-- Holdings -->
-
             <div class="metric-card">
-
-                <span class="metric-label">
-                    Holdings
-                </span>
-
-                <div
-                    id="holdingCount"
-                    class="metric-value"
-                >
-                    0
-                </div>
-
+                <span class="metric-label">Holdings</span>
+                <div id="holdingCount" class="metric-value">0</div>
             </div>
 
-
-            <!-- Performance -->
-
             <div class="metric-card">
-
-                <span class="metric-label">
-                    Snapshot Status
-                </span>
-
-                <div class="metric-value">
-                    Live
-                </div>
-
+                <span class="metric-label">Snapshot Status</span>
+                <div class="metric-value">Live</div>
             </div>
 
-
-            <!-- Intelligence -->
-
             <div class="metric-card">
-
-                <span class="metric-label">
-                    Analysis
-                </span>
-
-                <div class="metric-value">
-                    Ready
-                </div>
-
+                <span class="metric-label">Analysis</span>
+                <div class="metric-value">Ready</div>
             </div>
-
 
         </div>
 
 
 
-        <!-- =============================================
-             WHAT CHANGED
-        ============================================== -->
+        <!-- WHAT CHANGED -->
 
-        <section
-            class="changes-card"
-            id="changesCard"
-        >
+        <section class="changes-card" id="changesCard">
 
-            <p class="eyebrow">
-                INTELLIGENCE
-            </p>
+            <p class="eyebrow">INTELLIGENCE</p>
 
-            <h2>
-                What Changed?
-            </h2>
+            <h2>What Changed?</h2>
 
             <div id="changesContent">
-
                 <p class="changes-empty">
                     No previous snapshot to compare.
                 </p>
+            </div>
+
+        </section>
+
+
+
+        <!-- WHY DID YOUR PORTFOLIO MOVE? -->
+
+        <section class="why-card" id="whyCard">
+
+            <p class="eyebrow">ATTRIBUTION</p>
+
+            <h2>Why Did Your Portfolio Move?</h2>
+
+            <p id="whyHeadline" class="why-headline"></p>
+
+            <div id="whyExplanation" class="why-explanation"></div>
+
+
+            <div class="why-grid">
+
+                <div class="why-block">
+                    <h3>Top Contributors</h3>
+                    <ul id="whyContributors" class="why-list"></ul>
+                </div>
+
+                <div class="why-block">
+                    <h3>Top Detractors</h3>
+                    <ul id="whyDetractors" class="why-list"></ul>
+                </div>
+
+            </div>
+
+
+            <div class="why-block">
+
+                <h3>Sector Attribution</h3>
+
+                <table class="why-sector-table">
+
+                    <thead>
+                        <tr>
+                            <th>Sector</th>
+                            <th>Weight</th>
+                            <th>Return</th>
+                            <th>Contribution</th>
+                            <th>Holdings</th>
+                        </tr>
+                    </thead>
+
+                    <tbody id="whySectors"></tbody>
+
+                </table>
 
             </div>
 
@@ -252,74 +193,39 @@
 
 
 
-        <!-- =============================================
-             HISTORY
-        ============================================== -->
+        <!-- HISTORY -->
 
-        <section
-            class="history-card"
-            id="historySection"
-        >
+        <section class="history-card" id="historySection">
 
             <div class="section-header">
 
-
                 <div>
-
-                    <p class="eyebrow">
-                        HISTORY
-                    </p>
-
-                    <h2>
-                        Portfolio History
-                    </h2>
-
+                    <p class="eyebrow">HISTORY</p>
+                    <h2>Portfolio History</h2>
                 </div>
 
-
-                <div
-                    id="historySummary"
-                >
-                </div>
-
+                <div id="historySummary"></div>
 
             </div>
 
-
             <div class="chart-container">
-
-                <canvas
-                    id="portfolioHistoryChart"
-                >
-                </canvas>
-
+                <canvas id="portfolioHistoryChart"></canvas>
             </div>
 
         </section>
 
 
 
-        <!-- =============================================
-             CURRENT HOLDINGS
-        ============================================== -->
+        <!-- CURRENT HOLDINGS -->
 
         <section class="table-card">
-
 
             <div class="table-header">
 
                 <div>
-
-                    <p class="eyebrow">
-                        POSITIONS
-                    </p>
-
-                    <h2>
-                        Current Holdings
-                    </h2>
-
+                    <p class="eyebrow">POSITIONS</p>
+                    <h2>Current Holdings</h2>
                 </div>
-
 
                 <span class="badge badge-orange">
                     LIVE SNAPSHOT
@@ -334,54 +240,20 @@
                 <table>
 
                     <thead>
-
                         <tr>
-
-                            <th>
-                                Ticker
-                            </th>
-
-                            <th>
-                                Shares
-                            </th>
-
-                            <th>
-                                Avg Price
-                            </th>
-
-                            <th>
-                                Current
-                            </th>
-
-                            <th>
-                                Value
-                            </th>
-
-                            <th>
-                                Return
-                            </th>
-
-                            <th>
-                                Weight
-                            </th>
-
-                            <th>
-                                Contribution
-                            </th>
-
-                            <th>
-                                P&amp;L
-                            </th>
-
+                            <th>Ticker</th>
+                            <th>Shares</th>
+                            <th>Avg Price</th>
+                            <th>Current</th>
+                            <th>Value</th>
+                            <th>Return</th>
+                            <th>Weight</th>
+                            <th>Contribution</th>
+                            <th>P&amp;L</th>
                         </tr>
-
                     </thead>
 
-
-                    <tbody
-                        id="holdingsTable"
-                    >
-                    </tbody>
+                    <tbody id="holdingsTable"></tbody>
 
                 </table>
 
@@ -397,17 +269,9 @@
 
 
 
-<!-- =====================================================
-     JAVASCRIPT
-===================================================== -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-<script
-    src="https://cdn.jsdelivr.net/npm/chart.js"
-></script>
-
-<script
-    src="js/app.js"
-></script>
+<script src="js/app.js"></script>
 
 
 </body>
