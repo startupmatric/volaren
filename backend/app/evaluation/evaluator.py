@@ -235,3 +235,43 @@ def _empty_report(case_name: str, reason: str = "unknown") -> dict:
         "found_expected_facts": {},
         "reason": reason,
     }
+# =========================================================
+# TOOL COVERAGE EVALUATION (Day 8a)
+# =========================================================
+
+def evaluate_tool_coverage(
+    intent: str,
+    tool_calls: list,
+) -> dict:
+    """
+    Score whether the agent called the required tools for an intent.
+
+    Args:
+        intent:      e.g. "explain_movement"
+        tool_calls:  list of dicts with at least a "name" key
+
+    Returns:
+        {
+            "intent": str,
+            "required": [tool names],
+            "called": [tool names],
+            "missing": [tool names],
+            "satisfied": bool,
+            "coverage": float (0..1),
+        }
+    """
+
+    from app.agents.tool_registry import check_tool_coverage
+
+    called_names = []
+
+    for tc in tool_calls or []:
+        if isinstance(tc, dict):
+            name = tc.get("name")
+        else:
+            name = getattr(tc, "name", None)
+
+        if name:
+            called_names.append(name)
+
+    return check_tool_coverage(intent, called_names)

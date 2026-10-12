@@ -3,7 +3,12 @@ import tempfile
 from app.services.agent_explain_service import (
     explain_portfolio_with_agent,
 )
-from app.schemas.explanation import EvaluationReport
+from app.schemas.explanation import (
+    AgentExplainResponse,
+    EvaluationReport,
+)
+from app.agents.portfolio_agent import run_agent
+from app.agents.tool_registry import INTENT_EXPLAIN_MOVEMENT
 from app.services.evaluation_service import evaluate_portfolio
 from fastapi import (
     APIRouter,
@@ -347,3 +352,43 @@ def evaluate_portfolio_agent_endpoint(
         )
 
     return report
+# =========================================================
+# TOOL-CALLING AGENT (Day 8a)
+# =========================================================
+
+@router.post(
+    "/{portfolio_id}/explain/agent/v2",
+    response_model=AgentExplainResponse,
+)
+def get_portfolio_agent_v2_explanation(
+    portfolio_id: int,
+    db: Session = Depends(get_db),
+):
+    """
+    Tool-calling agent explanation of the latest snapshot.
+
+    Unlike `/explain/agent`, this endpoint uses the LangGraph
+    tool-calling loop: the LLM decides which tools to call
+    (movers, summary, sectors), sees their results, and writes
+    the explanation from grounded data.
+
+    Returns:
+        - explanation
+        - source ("llm" or "deterministic_fallback")
+        - validation result (numbers grounded in evidence)
+        - tool_calls: list of {name, args, latency_ms}
+    """
+
+    result = run_agent(
+        db,
+        portfolio_id,
+        intent=INTENT_EXPLAIN_MOVEMENT,
+    )
+
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail="No snapshots found for this portfolio",
+        )
+
+    return result

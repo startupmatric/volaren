@@ -6,9 +6,9 @@ evaluates the resulting explanation against the actual evidence.
 
 This is the glue between:
   - agents/tools.py  (evidence gathering)
-  - agents/portfolio_agent.py  (LLM reasoning)
+  - agents/portfolio_agent.py  (LLM + tool-calling reasoning)
   - services/explain_service.py  (deterministic text)
-  - evaluation/evaluator.py  (scoring)
+  - evaluation/evaluator.py  (scoring + tool coverage)
 
 The report shape is stable — the API wraps it directly.
 """
@@ -18,10 +18,11 @@ from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
+from app.agents.tool_registry import INTENT_EXPLAIN_MOVEMENT
 from app.agents.tools import gather_evidence
-from app.evaluation.evaluator import evaluate_explanation
-from app.services.agent_explain_service import (
-    explain_portfolio_with_agent,
+from app.evaluation.evaluator import (
+    evaluate_explanation,
+    evaluate_tool_coverage,
 )
 from app.services.explain_service import explain_attribution
 
@@ -73,6 +74,8 @@ def _build_report(
     explanation: str,
     evaluation: dict,
     latency_ms: float,
+    tool_calls: Optional[list] = None,
+    tool_coverage: Optional[dict] = None,
 ) -> dict:
     return {
         "portfolio_id": portfolio_id,
@@ -86,6 +89,15 @@ def _build_report(
         "missing_expected_facts": evaluation.get("missing_expected_facts", {}),
         "found_expected_facts": evaluation.get("found_expected_facts", {}),
         "explanation": explanation,
+        "tool_calls": tool_calls or [],
+        "tool_coverage": tool_coverage or {
+            "intent": None,
+            "required": [],
+            "called": [],
+            "missing": [],
+            "satisfied": True,
+            "coverage": 1.0,
+        },
     }
 
 
@@ -132,6 +144,8 @@ def evaluate_portfolio_deterministic(
         explanation=explanation,
         evaluation=evaluation,
         latency_ms=elapsed_ms,
+        tool_calls=[],
+        tool_coverage=None,
     )
 
 
@@ -142,12 +156,13 @@ def evaluate_portfolio_deterministic(
 def evaluate_portfolio_with_agent(
     db: Session,
     portfolio_id: int,
+    intent: str = INTENT_EXPLAIN_MOVEMENT,
 ) -> Optional[dict]:
     """
-    Evaluate the *LLM* explanation for a real portfolio.
+    Evaluate the LLM explanation for a real portfolio,
+    including tool selection.
 
     Falls back gracefully when the LLM is unavailable.
-    Reports the fallback source in the response.
 
     Returns None if the portfolio has no snapshots.
     """
@@ -159,23 +174,34 @@ def evaluate_portfolio_with_agent(
 
     started_at = time.perf_counter()
 
-    agent_result = explain_portfolio_with_agent(db, portfolio_id)
+    # Use the tool-calling agent directly so we capture tool_calls
+    from app.agents.portfolio_agent import run_agent
+
+    agent_result = run_agent(db, portfolio_id, intent=intent)
 
     if agent_result is None:
         return None
 
     explanation = agent_result.get("explanation", "")
     source = agent_result.get("source", "unknown")
+    tool_calls = agent_result.get("tool_calls") or []
 
     case = _build_case_from_evidence(evidence, explanation)
 
     evaluation = evaluate_explanation(explanation, case)
 
     # If the LLM failed and we fell back, this is a soft failure.
-    # We still report scores but mark the source clearly.
     if source == "deterministic_fallback":
         evaluation["passed"] = False
         evaluation.setdefault("reason", "llm_fallback")
+
+    # Score tool coverage
+    tool_coverage = evaluate_tool_coverage(intent, tool_calls)
+
+    # If tools were required and missing, penalize the pass
+    if not tool_coverage.get("satisfied", True):
+        evaluation["passed"] = False
+        evaluation.setdefault("reason", "missing_required_tools")
 
     elapsed_ms = (time.perf_counter() - started_at) * 1000
 
@@ -186,6 +212,8 @@ def evaluate_portfolio_with_agent(
         explanation=explanation,
         evaluation=evaluation,
         latency_ms=elapsed_ms,
+        tool_calls=tool_calls,
+        tool_coverage=tool_coverage,
     )
 
 
@@ -197,6 +225,7 @@ def evaluate_portfolio(
     db: Session,
     portfolio_id: int,
     mode: str = "deterministic",
+    intent: str = INTENT_EXPLAIN_MOVEMENT,
 ) -> Optional[dict]:
     """
     Unified entry point.
@@ -205,6 +234,10 @@ def evaluate_portfolio(
     """
 
     if mode == "agent":
-        return evaluate_portfolio_with_agent(db, portfolio_id)
+        return evaluate_portfolio_with_agent(
+            db,
+            portfolio_id,
+            intent=intent,
+        )
 
     return evaluate_portfolio_deterministic(db, portfolio_id)
