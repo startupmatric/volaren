@@ -11,3 +11,4 @@ langgraph
 langchain-core
 langchain-groq
 groq
+mcp[cli]<2
